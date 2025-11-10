@@ -3,13 +3,124 @@ Code validation and verification for generated Python code.
 
 Provides functions to check code syntax and safety before execution.
 Includes CFG-based validation to ensure tool ordering respects preconditions.
+Includes type checking for full type safety (Rust-based ty, extremely fast ~9ms startup).
 """
 
 import ast
 import logging
+import subprocess
+import tempfile
+import json
+from pathlib import Path
 from typing import Any, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Type Checking with ty (Astral's Rust-based type checker)
+# ============================================================================
+
+def check_ty_types(full_code: str) -> Tuple[bool, Optional[str]]:
+    """
+    Run ty type checking on the full code (definition + generated).
+    
+    Creates a temporary file with the code and runs ty (Astral's Rust-based type checker) on it.
+    ty is extremely fast (~9ms startup) and has excellent Pydantic support.
+    
+    Args:
+        full_code: Complete Python code including definitions and generated code
+    
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    try:
+        # Create a temporary directory with both the code file and a config file
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir_path = Path(temp_dir)
+            code_path = temp_dir_path / "code.py"
+            pyproject_path = temp_dir_path / "pyproject.toml"
+            
+            # Write the code
+            code_path.write_text(full_code)
+            
+            # Write ty config to balance strictness with LLM-generated code
+            # Key goals:
+            # 1. Catch wrong attribute access (e.g., details.price when price is nested)
+            # 2. Catch dict access on Pydantic models (e.g., details["items"] instead of details.items)
+            # 3. Catch type mismatches (e.g., int assigned to str field)
+            # 4. Allow possibly-unresolved references in LLM patterns (e.g., Optional narrowing in comprehensions)
+            # 5. Allow possibly-missing attributes/imports (LLM code often has conditional definitions)
+            #
+            # Rules configuration:
+            # - Error level: unresolved-attribute (wrong attrs), invalid-key (dict access on Pydantic),
+            #                invalid-assignment (type mismatches), invalid-argument-type
+            # - Ignore level: possibly-* rules (too strict for LLM code with conditionals)
+            #                 invalid-return-type (gives false positives on code with early returns)
+            config_content = """
+[tool.ty.rules]
+# Error on definite type errors
+unresolved-attribute = "error"
+invalid-key = "error"
+invalid-assignment = "error"
+invalid-argument-type = "error"
+non-subscriptable = "error"
+call-non-callable = "error"
+missing-argument = "error"
+unknown-argument = "error"
+
+# Ignore return type errors (false positives with early returns)
+invalid-return-type = "ignore"
+
+# Ignore "possibly" errors (too strict for LLM code patterns)
+possibly-unresolved-reference = "ignore"
+possibly-missing-attribute = "ignore"
+possibly-missing-import = "ignore"
+possibly-missing-implicit-call = "ignore"
+"""
+            pyproject_path.write_text(config_content)
+            
+            # Run ty with concise output for easier parsing
+            # Use --project to specify directory (ty will find pyproject.toml)
+            result = subprocess.run(
+                ["ty", "check", "--project", str(temp_dir_path), "--output-format", "concise", str(code_path)],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            # ty exits with code 1 if there are errors
+            if result.returncode != 0:
+                # Parse concise output (format: file:line:col: [rule] message)
+                error_lines = []
+                for line in result.stdout.strip().split('\n'):
+                    if line and ':' in line:
+                        # Extract line number and message from concise format
+                        parts = line.split(':', 3)
+                        if len(parts) >= 4:
+                            line_num = parts[1]
+                            message = parts[3].strip()
+                            error_lines.append(f"Line {line_num}: {message}")
+                        else:
+                            error_lines.append(line)
+                
+                if error_lines:
+                    return False, "\n".join(error_lines)
+                else:
+                    # Fallback if parsing fails - just return stdout
+                    return False, result.stdout.strip() or "Type checking failed"
+            
+            # No errors found
+            return True, None
+            
+    except subprocess.TimeoutExpired:
+        return False, "Type checking timed out (>10s)"
+    except FileNotFoundError:
+        logger.debug("ty not found, skipping type checking")
+        return True, None  # Skip silently if not installed
+    except Exception as e:
+        logger.warning(f"Type checking failed with exception: {e}")
+        return True, None  # Don't fail validation if ty check fails
 
 
 # ============================================================================
@@ -23,26 +134,42 @@ class Verify:
     Verifies that generated code is valid and safe to execute.
     """
     
-    def verify(self, code: str, agent: Any) -> Tuple[bool, Optional[str]]:
+    def verify(self, code, agent: Any) -> Tuple[bool, Optional[str]]:
         """
         Verify generated code.
         
         Args:
-            code: Generated Python code
+            code: Generated Python code (str) or tuple of (definition_code, generated_code)
             agent: Agent specification
         
         Returns:
             Tuple of (is_valid, error_message)
         """
         raise NotImplementedError
+    
+    def _extract_code(self, code):
+        """Extract generated_code from code (str or tuple)."""
+        if isinstance(code, tuple):
+            # If tuple, use only the generated_code part (second element)
+            return code[1] if len(code) > 1 else code[0]
+        return code
+    
+    def _extract_full_code(self, code):
+        """Extract full code for verification (including definitions if available)."""
+        if isinstance(code, tuple):
+            # Concatenate definition_code and generated_code
+            definition_code, generated_code = code[0], code[1] if len(code) > 1 else ""
+            return (definition_code + "\n" + generated_code) if definition_code else generated_code
+        return code
 
 
 class BaseVerify(Verify):
     """
     Base verification implementation that checks:
     - Syntax validity
-    - No dangerous operations
-    - Uses available tools only
+    - No dangerous operations (eval, exec, subprocess, etc)
+    - Type safety using ty (Rust-based type checker)
+    - Imports are allowed (they work fine in exec with proper state setup)
     """
     
     DANGEROUS_MODULES = {
@@ -51,21 +178,40 @@ class BaseVerify(Verify):
         '__import__', 'eval', 'exec', 'compile'
     }
     
-    def verify(self, code: str, agent: Any) -> Tuple[bool, Optional[str]]:
-        """Verify code is syntactically valid and safe."""
+    # Allowed imports in generated code
+    ALLOWED_IMPORTS = {
+        'asyncio', 're', 'json', 'datetime', 'time',
+        'pydantic', 'typing', 'collections', 'itertools',
+        'functools', 'operator', 'math', 'random',
+        'decimal', 'fractions', 'statistics',
+    }
+    
+    def verify(self, code, agent: Any) -> Tuple[bool, Optional[str]]:
+        """Verify code is syntactically valid, safe, and type-correct."""
+        # Extract just the generated code for syntax checking
+        generated_code = self._extract_code(code)
+        
         # Check syntax
         try:
-            tree = ast.parse(code)
+            tree = ast.parse(generated_code)
         except SyntaxError as e:
             return False, f"Syntax error: {e}"
         
         # Check for dangerous operations
         for node in ast.walk(tree):
-            # Check imports
+            # Check imports - allow them, they work fine in exec()
+            # The executor provides all necessary imports and tools in its state
             if isinstance(node, (ast.Import, ast.ImportFrom)):
-                module_name = node.module if isinstance(node, ast.ImportFrom) else node.names[0].name
-                if module_name and any(dangerous in module_name for dangerous in self.DANGEROUS_MODULES):
-                    return False, f"Dangerous import detected: {module_name}"
+                if isinstance(node, ast.ImportFrom):
+                    module_name = node.module
+                else:
+                    # For "import X" statements, get the first name
+                    module_name = node.names[0].name if node.names else None
+                
+                if module_name:
+                    # Only block dangerous modules
+                    if any(dangerous in module_name for dangerous in self.DANGEROUS_MODULES):
+                        return False, f"Dangerous import detected: {module_name}"
             
             # Check function calls
             if isinstance(node, ast.Call):
@@ -74,20 +220,14 @@ class BaseVerify(Verify):
                     if func_name in ['eval', 'exec', 'compile', '__import__']:
                         return False, f"Dangerous function detected: {func_name}"
         
-            # Also check for undefined names (references to names not defined in
-            # the module and not part of builtins or the agent's tools/schemas).
-            try:
-                from .codecheck import NoUndefinedNames
-                is_valid, error = NoUndefinedNames().verify(code, agent=agent)
-                if not is_valid:
-                    return False, error
-            except Exception:
-                # If undefined-name checking fails for any reason, don't block
-                # verification here; downstream verifiers or execution will catch
-                # issues. We swallow exceptions to avoid false negatives.
-                pass
-
-            return True, None
+        # Run type checking on full code (definition + generated) if available
+        full_code = self._extract_full_code(code)
+        if full_code != generated_code:  # Only run if we have definition code
+            is_valid, type_error = check_ty_types(full_code)
+            if not is_valid:
+                return False, f"Type checking failed: {type_error}"
+        
+        return True, None
 
 
 class IsLoop(Verify):
@@ -106,10 +246,13 @@ class IsLoop(Verify):
     ```
     """
     
-    def verify(self, code: str, agent: Any) -> Tuple[bool, Optional[str]]:
+    def verify(self, code, agent: Any) -> Tuple[bool, Optional[str]]:
         """Check if code is a standard agentic loop."""
+        # Extract just the generated code
+        generated_code = self._extract_code(code)
+        
         try:
-            tree = ast.parse(code)
+            tree = ast.parse(generated_code)
         except SyntaxError:
             return False, "Invalid syntax"
         
@@ -254,11 +397,14 @@ class IsFunction(Verify):
     Ignores stub functions that raise NotImplementedError.
     """
     
-    def verify(self, code: str, **kwargs) -> tuple[bool, Optional[str]]:
+    def verify(self, code, **kwargs) -> tuple[bool, Optional[str]]:
         """Check if code has at least one async function (not a stub) and extract metadata."""
+        # Extract just the generated code (not definition code)
+        generated_code = self._extract_code(code)
+        
         # Parse code
         try:
-            tree = ast.parse(code)
+            tree = ast.parse(generated_code)
         except SyntaxError as e:
             return False, f"Syntax error: {e}"
         

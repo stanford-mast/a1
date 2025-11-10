@@ -63,8 +63,34 @@ class Tool(BaseModel):
     
     model_config = ConfigDict(arbitrary_types_allowed=True)
     
-    async def __call__(self, **kwargs) -> Any:
-        """Execute the tool with validation."""
+    async def __call__(self, *args, **kwargs) -> Any:
+        """Execute the tool with validation.
+        
+        Supports multiple styles:
+        - Positional BaseModel: await tool(input_obj)  where input_obj is an InputSchema instance
+        - Positional string: await tool(content_str)  where tool has 'content' as first parameter
+        - Keyword: await tool(field1=value1, field2=value2, ...)
+        """
+        # If called with a single positional argument
+        if len(args) == 1:
+            arg = args[0]
+            # If it's a BaseModel instance, unpack it
+            if isinstance(arg, BaseModel):
+                input_obj = arg
+                # Extract all fields from the input object as kwargs
+                if hasattr(input_obj, 'model_dump'):
+                    kwargs = {**input_obj.model_dump(), **kwargs}
+                else:
+                    # Fallback for non-Pydantic objects
+                    kwargs = {**{k: getattr(input_obj, k) for k in self.input_schema.model_fields}, **kwargs}
+            # If it's a string and the first input field is 'content', use it for that field
+            elif isinstance(arg, str) and 'content' in self.input_schema.model_fields:
+                kwargs['content'] = arg
+            else:
+                raise TypeError(f"Tool {self.name} does not accept positional arguments of type {type(arg).__name__}")
+        elif args:
+            raise TypeError(f"Tool {self.name} does not accept multiple positional arguments")
+        
         # Separate schema fields from extra parameters
         schema_fields = set(self.input_schema.model_fields.keys())
         schema_kwargs = {k: v for k, v in kwargs.items() if k in schema_fields}

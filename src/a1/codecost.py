@@ -69,8 +69,11 @@ def compute_block_cost(
         total_depth = loop_depth + comp_depth
         multiplier = LOOP_MULTIPLIER ** total_depth
         
-        # Look up base latency
-        base_latency = tool_name_to_cost.get(func_name, 0.0)
+        # Look up base latency based on containing the name in it
+        base_latency = next(
+            (cost for tool_name, cost in tool_name_to_cost.items() if tool_name in func_name),
+            0.0
+        )
         cost = base_latency * multiplier
         total_cost += cost
     
@@ -247,18 +250,25 @@ class Cost:
     Estimates the cost/complexity of generated code to rank candidates.
     """
     
-    def compute_cost(self, code: str, agent: Any) -> float:
+    def compute_cost(self, code, agent: Any) -> float:
         """
         Compute estimated cost for code.
         
         Args:
-            code: Generated Python code
+            code: Generated Python code (str) or tuple of (definition_code, generated_code)
             agent: Agent specification
         
         Returns:
             Cost estimate (lower is better)
         """
         raise NotImplementedError
+    
+    def _extract_code(self, code):
+        """Extract generated_code from code (str or tuple)."""
+        if isinstance(code, tuple):
+            # If tuple, use only the generated_code part (second element)
+            return code[1] if len(code) > 1 else code[0]
+        return code
 
 
 class BaseCost(Cost):
@@ -287,8 +297,11 @@ class BaseCost(Cost):
         global LOOP_MULTIPLIER
         LOOP_MULTIPLIER = loop_multiplier
     
-    def compute_cost(self, code: str, agent: Any) -> float:
+    def compute_cost(self, code, agent: Any) -> float:
         """Compute cost based on tool calls and loops using CFG analysis."""
+        # Extract just the generated code
+        generated_code = self._extract_code(code)
+        
         # Extract tool costs from agent if available
         tool_cost_map = self.tool_costs.copy()
         if hasattr(agent, 'get_all_tools'):
@@ -297,7 +310,7 @@ class BaseCost(Cost):
                     # Default cost for unknown tools
                     tool_cost_map[tool.name] = 1.0
         
-        return compute_code_cost(code, tool_cost_map)
+        return compute_code_cost(generated_code, tool_cost_map)
 
 
 class QuantitativeCriteria(Cost):
@@ -335,13 +348,16 @@ class QuantitativeCriteria(Cost):
         self.num_samples = num_samples
         self.min_samples_for_aggregation = min_samples_for_aggregation
     
-    def compute(self, code: str, agent: Any) -> float:
+    def compute(self, code, agent: Any) -> float:
         """
         Compute cost using LLM-based quantitative criteria with optional sampling.
         
         Returns:
             Aggregated cost score
         """
+        # Extract just the generated code
+        generated_code = self._extract_code(code)
+        
         import asyncio
         import statistics
         
@@ -355,7 +371,7 @@ Valid range: {self.min} to {self.max} (inclusive)
 
 Code:
 ```python
-{code}
+{generated_code}
 ```
 
 Return ONLY a number between {self.min} and {self.max} (no explanation, no units).

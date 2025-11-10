@@ -13,32 +13,52 @@ pip install a1
 ### Define a Tool
 
 ```python
-from a1 import tool
+from a1 import Tool
+from pydantic import BaseModel, Field
 
-@tool(name="add", description="Add two numbers")
-async def add(a: int, b: int) -> int:
-    return a + b
+class CalculatorInput(BaseModel):
+    a: float = Field(..., description="First number")
+    b: float = Field(..., description="Second number")
+    operation: str = Field(..., description="Operation: add, subtract, multiply, divide")
+
+class CalculatorOutput(BaseModel):
+    result: float = Field(..., description="Result")
+
+async def calculator_execute(a: float, b: float, operation: str) -> dict:
+    if operation == "add":
+        return {"result": a + b}
+    elif operation == "divide":
+        return {"result": a / b}
+    # ... etc
+
+calculator = Tool(
+    name="calculator",
+    description="Perform basic arithmetic operations",
+    input_schema=CalculatorInput,
+    output_schema=CalculatorOutput,
+    execute=calculator_execute,
+    is_terminal=False
+)
 ```
 
 ### Create an Agent
 
 ```python
-from a1 import Agent, LLM, Done
-from pydantic import BaseModel
+from a1 import Agent, LLM
+from pydantic import BaseModel, Field
 
-class Input(BaseModel):
-    query: str
+class AgentInput(BaseModel):
+    problem: str = Field(..., description="Problem to solve")
 
-class Output(BaseModel):
-    answer: str
+class AgentOutput(BaseModel):
+    answer: str = Field(..., description="Solution")
 
 agent = Agent(
     name="my_agent",
-    description="Does something useful",
-    input_schema=Input,
-    output_schema=Output,
-    tools=[add, LLM("gpt-4o-mini"), Done()],
-    terminal_tools=["done"]
+    description="Solves math problems",
+    input_schema=AgentInput,
+    output_schema=AgentOutput,
+    tools=[calculator, LLM("groq:openai/gpt-oss-20b")]
 )
 ```
 
@@ -49,318 +69,181 @@ from a1 import Runtime
 
 runtime = Runtime()
 
-# AOT: Compile and cache
-compiled = await runtime.aot(agent)
-result = await compiled(query="What is 2+2?")
+# AOT: Compile once, reuse
+compiled = await runtime.aot(agent, cache=True)
+result = await compiled(problem="What is 42 divided by 7?")
 
-# JIT: Execute on-the-fly
-result = await runtime.jit(agent, Input(query="What is 2+2?"))
-```
+# JIT: Generate and execute on-the-fly
+result = await runtime.jit(agent, problem="What is 10 times 5?")
 
-### Use Global Runtime
-
-```python
-from a1 import aot, jit, execute
-
-# Uses get_runtime() internally
-compiled = await aot(agent)
-result = await jit(agent, input_data)
-result = await execute(tool, input_data)
+# Direct tool execution
+result = await runtime.execute(calculator, a=10, b=5, operation="add")
 ```
 
 ## Built-in Tools
 
 ### LLM
 
+Supported providers:
+- `"gpt-4o"`, `"gpt-4o-mini"` (OpenAI)
+- `"claude-3-5-sonnet-20241022"` (Anthropic)
+- `"groq:openai/gpt-oss-20b"` (Groq)
+- `"mistral:mistral-small-latest"` (Mistral)
+
 ```python
 from a1 import LLM
 
-# Create LLM tool
+# Simple LLM tool
 llm = LLM("gpt-4o-mini")
-llm = LLM("claude-3-5-sonnet-20241022")
-llm = LLM("mistral:mistral-small-latest")
 
-# With schemas
-llm = LLM("gpt-4", input_schema=MyInput, output_schema=MyOutput)
+# LLM with specific role
+llm = LLM("claude-3-5-sonnet-20241022", role="expert")
 ```
 
-### Done
+### Done (Terminal Tool)
+
+The LLM automatically adds a `Done` tool when compiling. You don't need to add it manually.
 
 ```python
-from a1 import Done
-
-# Simple done
-done = Done()
-
-# With schema
-done = Done(output_schema=MyOutput)
+# The Done tool is automatically available in generated code
+# Just reference it as: Done(answer="your answer")
 ```
 
-## RAG Toolsets
+## Execution Modes
 
-### FileSystem
+### AOT (Ahead-Of-Time) Compilation
+
+- Generates code once, compiles it, caches it
+- Fastest execution (code is pre-compiled)
+- Best for: Production, repeated execution
 
 ```python
-from a1 import FileSystemRAG
-
-# Local filesystem
-fs_tools = FileSystemRAG("./documents")
-
-# S3
-s3_tools = FileSystemRAG("s3://bucket/prefix")
-
-# Tools: ls, grep, cat
+compiled = await runtime.aot(agent, cache=True)
+result = await compiled(problem="What is 2 + 2?")
 ```
 
-### SQL
+### JIT (Just-In-Time) Execution
+
+- Generates code on-the-fly for each request
+- More flexible for dynamic problems
+- Best for: Development, variable inputs
 
 ```python
-from a1 import SQLRAG
-
-# From connection string
-sql_tools = SQLRAG("postgresql://user:pass@host/db")
-
-# From DataFrame
-import pandas as pd
-df = pd.DataFrame(...)
-sql_tools = SQLRAG(df, schema="my_table")
-
-# Tool: sql (SELECT only)
+result = await runtime.jit(agent, problem="What is 2 + 2?")
 ```
 
-## MCP Integration
+### IsLoop Mode
+
+Uses templated agentic loop instead of LLM generation for more predictable behavior.
 
 ```python
-from a1 import ToolSet
+from a1 import Runtime, IsLoop
 
-mcp_config = {
-    "command": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path"]
-}
-
-toolset = await ToolSet.load_from_mcp(mcp_config, name="fs")
+runtime = Runtime(verify=[IsLoop()])
+compiled = await runtime.aot(agent)
 ```
 
-## Runtime Configuration
+## Code Verification
 
-### Custom Strategies
+Automatic verification catches:
+- Syntax errors
+- Type mismatches (with ty)
+- Dangerous operations
+- Missing loop patterns (IsLoop)
 
 ```python
-from a1 import Runtime, SimpleGenerate, SimpleVerify, SimpleCost, SlidingWindowCompact
+from a1 import Runtime, BaseVerify, IsLoop
 
 runtime = Runtime(
-    generate=SimpleGenerate(llm_tool=LLM("gpt-4")),
-    verify=[SimpleVerify()],
-    cost=SimpleCost(tool_costs={"expensive": 100.0}),
-    compact=SlidingWindowCompact(window_size=10)
+    verify=[
+        BaseVerify(),  # Safety checks
+        IsLoop()       # Loop pattern verification
+    ]
 )
-```
-
-### Context Manager
-
-```python
-with Runtime() as rt:
-    result = await rt.jit(agent, input_data)
-    # rt is now the global runtime
 ```
 
 ## Context Management
 
-### Access Contexts
+Contexts track conversation history and state across tool calls.
 
 ```python
+from a1 import get_context, set_runtime, Runtime
+
 runtime = Runtime()
+set_runtime(runtime)
 
-# Main context
-main = runtime.H["main"]
+# Access or create context
+ctx = get_context("main")
+ctx.messages  # List of Message objects
 
-# Custom context
-runtime.H["sidebar"] = Context()
-
-# No-history context
-from a1 import no_history
-temp = no_history()
+# Create new context for different conversation
+ctx_sidebar = get_context("sidebar")
 ```
 
-### Message Types
+## Messages
 
 ```python
 from a1 import Message
 
-msg = Message(role="user", content="Hello")
-msg = Message(role="assistant", content="Hi", tool_calls=[...])
-msg = Message(role="tool", content="Result", name="tool_name", tool_call_id="123")
-msg = Message(role="system", content="You are helpful")
+# User message
+msg = Message(role="user", content="What is 2 + 2?")
+
+# Assistant response with tool calls
+msg = Message(
+    role="assistant",
+    content="I'll calculate that",
+    tool_calls=[...]
+)
+
+# Tool result
+msg = Message(
+    role="tool",
+    content="The result is 4",
+    name="calculator",
+    tool_call_id="123"
+)
 ```
 
 ## Custom Strategies
 
-### Generate
+### Generate Strategy
+
+Controls how agent code is generated.
 
 ```python
 from a1 import Generate
 
 class MyGenerate(Generate):
-    async def generate(self, agent, input_data, context):
-        # Your logic here
-        return "generated code"
+    async def generate(self, agent, task):
+        # Your code generation logic
+        return definition_code, generated_code
 ```
 
-### Verify
+### Verify Strategy
+
+Validates generated code before execution.
 
 ```python
 from a1 import Verify
 
 class MyVerify(Verify):
     def verify(self, code, agent):
-        # Your checks here
-        return True, None  # (is_valid, error_message)
+        # Your validation logic
+        return is_valid, error_message
 ```
 
-### Cost
+### Cost Strategy
+
+Ranks code candidates by estimated cost.
 
 ```python
 from a1 import Cost
 
 class MyCost(Cost):
     def compute_cost(self, code, agent):
-        # Your calculation
-        return 42.0
+        # Calculate cost (lower = better)
+        return cost_value
 ```
-
-### Compact
-
-```python
-from a1 import Compact
-
-class MyCompact(Compact):
-    def compact(self, contexts):
-        # Your compaction logic
-        return contexts
-```
-
-## CLI Commands
-
-```bash
-# Clear cache
-a1 cache clear
-
-# List cache
-a1 cache list
-
-# Custom cache dir
-a1 cache clear --dir .my_cache
-
-# Version
-a1 --version
-```
-
-## LangChain Conversion
-
-```python
-from langchain.agents import initialize_agent
-from a1 import Agent
-
-lc_agent = initialize_agent(...)
-a1_agent = Agent.from_langchain(lc_agent)
-```
-
-## Observability
-
-### OpenTelemetry
-
-Automatic instrumentation:
-
-```python
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-
-# Set up OTEL
-trace.set_tracer_provider(TracerProvider())
-
-# a1 automatically instruments:
-# - runtime.aot()
-# - runtime.jit()
-# - runtime.execute()
-```
-
-### Attributes Tracked
-
-- `agent.name`
-- `tool.name`
-- `cache.hit`
-- `cache.enabled`
-- `generation.type`
-
-## Common Patterns
-
-### Simple Agent
-
-```python
-@tool(name="search")
-async def search(query: str) -> list:
-    return [...]
-
-agent = Agent(
-    name="searcher",
-    description="Search agent",
-    input_schema=create_model("Input", query=(str, ...)),
-    output_schema=create_model("Output", results=(list, ...)),
-    tools=[search, LLM("gpt-4o-mini"), Done()]
-)
-```
-
-### Multi-tool Agent
-
-```python
-tools = [
-    tool1,
-    tool2,
-    FileSystemRAG("./docs"),
-    SQLRAG(db_conn),
-    LLM("gpt-4"),
-    Done()
-]
-
-agent = Agent(name="worker", ..., tools=tools)
-```
-
-### Loop Agent
-
-```python
-from a1 import IsLoop
-
-runtime = Runtime(
-    verify=[SimpleVerify(), IsLoop()]
-)
-
-# IsLoop detected → uses template instead of LLM generation
-compiled = await runtime.aot(agent)
-```
-
-## Error Handling
-
-```python
-from a1 import Runtime
-
-runtime = Runtime()
-
-try:
-    result = await runtime.jit(agent, input_data)
-except RuntimeError as e:
-    # Generation or verification failed
-    print(f"Error: {e}")
-```
-
-## Best Practices
-
-1. **Use type hints** - Enables automatic schema generation
-2. **Add descriptions** - Helps LLM understand tools
-3. **Cache in production** - Set `cache=True` for `aot()`
-4. **Use compaction** - Prevent context overflow
-5. **Test tools separately** - Before adding to agents
-6. **Start simple** - Add complexity incrementally
-7. **Monitor with OTEL** - Track performance and costs
 
 ## Environment Variables
 
@@ -368,47 +251,163 @@ except RuntimeError as e:
 # LLM API keys
 export OPENAI_API_KEY="..."
 export ANTHROPIC_API_KEY="..."
+export GROQ_API_KEY="..."
 export MISTRAL_API_KEY="..."
 
-# Cache directory
+# Optional: custom cache directory
 export A1_CACHE_DIR=".a1"
 ```
 
-## Tips & Tricks
+## Runtime Configuration
 
-### Debugging
+```python
+from a1 import Runtime, BaseGenerate, BaseVerify, BaseCost
+
+runtime = Runtime(
+    generate=BaseGenerate(
+        llm_tool=LLM("gpt-4")
+    ),
+    verify=[BaseVerify()],
+    cost=BaseCost(),
+    compact=BaseCompact(window_size=20)
+)
+```
+
+## Common Patterns
+
+### Simple Tool Execution
+
+```python
+runtime = Runtime()
+result = await runtime.execute(tool, **input_params)
+```
+
+### Multi-Tool Agent
+
+```python
+agent = Agent(
+    name="worker",
+    description="Uses multiple tools",
+    input_schema=Input,
+    output_schema=Output,
+    tools=[calculator, searcher, llm]
+)
+
+compiled = await runtime.aot(agent)
+```
+
+### Agent with Context
+
+```python
+from a1 import get_context, set_runtime
+
+runtime = Runtime()
+set_runtime(runtime)
+
+result = await runtime.jit(agent, problem="...")
+
+# Access conversation history
+ctx = get_context("main")
+for msg in ctx.messages:
+    print(f"{msg.role}: {msg.content}")
+```
+
+## Error Handling
+
+```python
+try:
+    result = await runtime.jit(agent, input_data)
+except RuntimeError as e:
+    print(f"Execution failed: {e}")
+except ValueError as e:
+    print(f"Invalid input: {e}")
+```
+
+## Debugging
+
+Enable logging to see execution details:
 
 ```python
 import logging
+
 logging.basicConfig(level=logging.INFO)
 
-# Shows:
-# - Code execution
+# Will show:
+# - Code generation
 # - LLM calls
-# - Tool calls
+# - Tool execution
 # - Cache operations
+# - Type checking results
 ```
 
-### Testing
+## Best Practices
+
+1. **Define clear schemas** - Use Pydantic models with descriptions
+2. **Test tools independently** - Verify before adding to agents
+3. **Use caching in production** - Set `cache=True` for `aot()`
+4. **Check environment variables** - Ensure API keys are set
+5. **Monitor with logging** - Track what's happening
+6. **Handle errors gracefully** - Catch and log exceptions
+7. **Use type hints** - Enables better schema generation
+
+## Examples
+
+### Math Agent
 
 ```python
-from a1 import SimpleExecutor
+from a1 import Agent, Tool, LLM, Runtime
+from pydantic import BaseModel, Field
 
-executor = SimpleExecutor()
-result = await executor.execute("x = 2 + 2\nresult = x")
-assert result.output == 4
-```
+class MathInput(BaseModel):
+    problem: str = Field(..., description="Math problem")
 
-### Multiple Candidates
+class MathOutput(BaseModel):
+    answer: str = Field(..., description="Solution")
 
-```python
-# Generate multiple code candidates (future feature)
-# For now, use multiple verify strategies to filter
-runtime = Runtime(
-    verify=[
-        SimpleVerify(),
-        MyCustomVerifier1(),
-        MyCustomVerifier2()
-    ]
+# Define calculator tool
+calculator = Tool(
+    name="calculator",
+    description="Perform arithmetic",
+    input_schema=CalculatorInput,
+    output_schema=CalculatorOutput,
+    execute=calculator_execute
 )
+
+# Create agent
+agent = Agent(
+    name="math_solver",
+    description="Solves math problems",
+    input_schema=MathInput,
+    output_schema=MathOutput,
+    tools=[calculator, LLM("gpt-4o-mini")]
+)
+
+# Execute
+runtime = Runtime()
+result = await runtime.jit(agent, problem="What is 2 + 2?")
+print(result.answer)  # "4"
 ```
+
+## API Overview
+
+### Core Classes
+
+- `Agent` - Defines an agent with tools and schemas
+- `Tool` - Wraps a callable with schema
+- `Runtime` - Executes agents (AOT/JIT)
+- `Context` - Tracks messages and history
+- `Message` - Single message in context
+
+### Key Functions
+
+- `get_context(name)` - Get or create context
+- `set_runtime(runtime)` - Set global runtime
+- `get_runtime()` - Get global runtime
+
+### Strategies
+
+- `Generate` - How to generate code
+- `Verify` - How to validate code
+- `Cost` - How to rank code
+- `Compact` - How to compress contexts
+

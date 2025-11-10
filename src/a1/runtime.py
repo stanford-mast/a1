@@ -129,7 +129,6 @@ class Runtime:
         """
         from .models import Strategy
         from .strategies import IsLoop, IsFunction
-        from .codecost import compute_code_cost
         from opentelemetry import trace
         import asyncio
         
@@ -160,11 +159,6 @@ class Runtime:
                 
                 span.set_attribute("cache.hit", False)
             
-            # Build definition code (imports, schemas, tool stubs) for showing LLM what's available
-            definition_code = ""
-            if hasattr(self.generate, '_build_definition_code'):
-                definition_code = self.generate._build_definition_code(agent, return_function=True)
-            
             # Check if we should use templated loop
             is_loop_verifiers = [v for v in self.verify if isinstance(v, IsLoop)]
             if is_loop_verifiers:
@@ -174,10 +168,10 @@ class Runtime:
                 logger.info(f"Generated template code:\n{generated_code}")
                 span.set_attribute("generation.type", "template")
                 
-                # Verify template with concatenated code (definitions + template)
-                full_code_for_verification = definition_code + "\n" + generated_code if definition_code else generated_code
+                # For template verification, we just verify the generated code itself
+                # (no separate definition_code needed for template)
                 for verifier in self.verify:
-                    is_valid, error = verifier.verify(full_code_for_verification, agent=agent)
+                    is_valid, error = verifier.verify(generated_code, agent=agent)
                     if not is_valid:
                         raise RuntimeError(f"Template verification failed: {error}")
             else:
@@ -189,42 +183,49 @@ class Runtime:
                 async def generate_with_retries():
                     past_attempts = []
                     for attempt in range(max_retries):
-                        generated_code = await self.generate.generate(
+                        result = await self.generate.generate(
                             agent=agent,
                             task=agent.description,
                             return_function=True,  # AOT generates functions
                             past_attempts=past_attempts if attempt > 0 else None
                         )
                         
-                        if not generated_code:
+                        if not result:
                             continue
                         
-                        # Concatenate definitions with generated code for validation
-                        full_code_for_verification = definition_code + "\n" + generated_code if definition_code else generated_code
+                        # Generate returns (definition_code, generated_code) tuple
+                        definition_code, generated_code = result
+                        
+                        # Fix the generated code (wrap if needed for AOT)
+                        from .code_utils import fix_generated_code
+                        fixed_code = fix_generated_code(generated_code, is_aot=True, function_name=agent.name, agent=agent)
+                        
+                        # Concatenate definitions with fixed code for validation
+                        full_code_for_verification = definition_code + "\n" + fixed_code if definition_code else fixed_code
                         
                         # Validate with all verifiers (including IsFunction for AOT)
                         all_valid = True
                         validation_error = None
                         
-                        # First check IsFunction on JUST the generated code (not concatenated)
+                        # First check IsFunction on JUST the fixed code (not concatenated)
                         is_function_verifier = IsFunction()
-                        is_valid, error = is_function_verifier.verify(generated_code, agent=agent)
+                        is_valid, error = is_function_verifier.verify(fixed_code, agent=agent)
                         if not is_valid:
                             all_valid = False
                             validation_error = f"IsFunction failed: {error}"
                         else:
-                            # Then check other verifiers on the full concatenated code
-                                for verifier in self.verify:
-                                    is_valid, error = verifier.verify(full_code_for_verification, agent=agent)
-                                    if not is_valid:
-                                        all_valid = False
-                                        validation_error = error
-                                        break
+                            # Then check other verifiers with tuple of (definition_code, fixed_code)
+                            for verifier in self.verify:
+                                is_valid, error = verifier.verify((definition_code, fixed_code), agent=agent)
+                                if not is_valid:
+                                    all_valid = False
+                                    validation_error = error
+                                    break
                         
                         if all_valid:
-                            # Compute cost on JUST the generated code (not definitions)
-                            cost = compute_code_cost(generated_code)
-                            return (generated_code, cost, None)
+                            # Compute cost using the strategy's cost estimator
+                            cost = self.cost.compute_cost((definition_code, fixed_code), agent=agent)
+                            return (fixed_code, cost, None)
                         else:
                             # Track attempt for retry
                             past_attempts.append((generated_code, validation_error))
@@ -315,11 +316,6 @@ class Runtime:
             self.current_agent = agent
             
             try:
-                # Build definition code upfront for JIT
-                definition_code = ""
-                if hasattr(self.generate, '_build_definition_code'):
-                    definition_code = self.generate._build_definition_code(agent, return_function=False)
-                
                 # Generate code using LLM with parallel candidates
                 logger.info(f"Generating {num_candidates} code candidates for {agent.name}")
                 
@@ -327,20 +323,25 @@ class Runtime:
                 async def generate_with_retries():
                     past_attempts = []
                     for attempt in range(max_retries):
-                        code = await self.generate.generate(
+                        result = await self.generate.generate(
                             agent=agent,
                             task=json.dumps(input_dict),
                             return_function=False,  # JIT generates code blocks
                             past_attempts=past_attempts if attempt > 0 else None
                         )
                         
-                        if not code:
+                        if not result:
                             continue
                         
-                        # For JIT, also concatenate definitions with generated code for validation
-                        # This ensures the generated code can reference tools and schemas properly
+                        # Generate returns (definition_code, generated_code) tuple
+                        definition_code, generated_code = result
                         
-                        full_code = definition_code + "\n" + code if definition_code else code
+                        # Fix the generated code (just fix asyncio.run for JIT)
+                        from .code_utils import fix_generated_code
+                        fixed_code = fix_generated_code(generated_code, is_aot=False)
+                        
+                        # For JIT, concatenate definitions with fixed code for validation
+                        full_code = definition_code + "\n" + fixed_code if definition_code else fixed_code
                         
                         # Validate with verifiers (skip IsLoop which is only for AOT)
                         all_valid = True
@@ -357,100 +358,66 @@ class Runtime:
                                 break
                         
                         if all_valid:
-                            # Compute cost
-                            cost = compute_code_cost(code)
-                            return (code, cost, None)
+                            # Compute cost using the strategy's cost estimator
+                            cost = self.cost.compute_cost((definition_code, fixed_code), agent=agent)
+                            return (fixed_code, definition_code, cost, None)
                         else:
                             # Track attempt for retry
-                            past_attempts.append((code, validation_error))
+                            past_attempts.append((generated_code, validation_error))
                     
                     # All retries failed
                     if past_attempts:
-                        return (past_attempts[-1][0], float('inf'), past_attempts[-1][1])
-                    return (None, float('inf'), "Failed to generate code")
+                        return (past_attempts[-1][0], "", float('inf'), past_attempts[-1][1])
+                    return (None, "", float('inf'), "Failed to generate code")
                 
                 # Launch parallel generation tasks
                 tasks = [generate_with_retries() for _ in range(num_candidates)]
                 results = await asyncio.gather(*tasks)
                 
                 # Filter valid candidates and rank by cost
-                valid_candidates = [(code, cost) for code, cost, error in results if error is None]
+                valid_candidates = [(code, def_code, cost) for code, def_code, cost, error in results if error is None]
                 
                 if not valid_candidates:
                     # All candidates failed - report errors
-                    errors = [error for _, _, error in results if error]
+                    errors = [error for _, _, _, error in results if error]
                     raise RuntimeError(f"All candidates failed validation: {errors}")
                 
                 # Select best candidate by cost
-                code, best_cost = min(valid_candidates, key=lambda x: x[1])
+                code, definition_code, best_cost = min(valid_candidates, key=lambda x: x[2])
                 logger.info(f"Selected best candidate with cost {best_cost} from {len(valid_candidates)} valid")
                 span.set_attribute("generation.best_cost", best_cost)
                 span.set_attribute("generation.num_valid", len(valid_candidates))
                 
+                # Use code_utils for schema injection
+                from .code_utils import (
+                    inject_schemas_to_executor_state,
+                    clean_schemas_from_executor_state,
+                    populate_definitions_to_executor_state,
+                    validate_code_output,
+                )
+                
                 # Add agent's input/output schemas to executor state
-                if hasattr(agent.input_schema, '__name__'):
-                    self.executor.state[agent.input_schema.__name__] = agent.input_schema
-                if hasattr(agent.output_schema, '__name__'):
-                    self.executor.state[agent.output_schema.__name__] = agent.output_schema
+                inject_schemas_to_executor_state(self.executor, agent)
                 
-                # Fix generated code before execution (JIT should execute JUST
-                # the generated code body, but the definitions are required in
-                # the execution environment. We keep execution to the generated
-                # code but ensure the executor.state contains the definitions'
-                # symbols by loading the definitions into the executor state.
-                from .codefix import fix_generated_code
-                fixed_code = fix_generated_code(code, is_aot=False)
-                exec_code = fixed_code
-                # Populate executor.state with names from definition_code so
-                # symbols like tool aliases are available at runtime for JIT.
+                # Populate executor.state with names from definition_code (imports and schemas)
                 if definition_code:
-                    try:
-                        # Execute the definition_code in a temporary globals
-                        # env to extract top-level names, then copy into state.
-                        temp_env: dict = {}
-                        exec(definition_code, temp_env, temp_env)
-                        # Filter out builtins and dunder names
-                        def_vars = {k: v for k, v in temp_env.items() if not k.startswith('__')}
-                        self.executor.state.update(def_vars)
-                    except Exception:
-                        # If executing definitions fails, fall back to not
-                        # populating state - verification should have caught
-                        # issues earlier.
-                        pass
+                    populate_definitions_to_executor_state(self.executor, definition_code)
                 
-                # Execute code
-                exec_result = await self.executor.execute(exec_code, tools=agent.get_all_tools())
+                # Add input variables to executor state so generated code can access them
+                self.executor.state.update(input_dict)
+                
+                # Execute just the generated code (not definition code - that's only for LLM)
+                exec_result = await self.executor.execute(code, tools=agent.get_all_tools())
                 
                 # Clean up schemas from state
-                if hasattr(agent.input_schema, '__name__'):
-                    self.executor.state.pop(agent.input_schema.__name__, None)
-                if hasattr(agent.output_schema, '__name__'):
-                    self.executor.state.pop(agent.output_schema.__name__, None)
+                clean_schemas_from_executor_state(self.executor, agent)
                 
                 if exec_result.error:
                     raise RuntimeError(f"Execution error: {exec_result.error}")
                 
                 # Validate output against agent's output schema
-                # The generated code should return a value matching the output schema
                 raw_output = exec_result.output
-                
-                # Try different ways to validate the output
-                try:
-                    if isinstance(raw_output, dict):
-                        # If it's already a dict, use it directly
-                        validated_output = agent.output_schema(**raw_output)
-                    else:
-                        # Try to wrap it in the first field of the output schema
-                        fields = agent.output_schema.model_fields
-                        if len(fields) == 1:
-                            field_name = list(fields.keys())[0]
-                            validated_output = agent.output_schema(**{field_name: raw_output})
-                        else:
-                            # Can't automatically map - raise error
-                            raise ValueError(f"Cannot map output {raw_output} to schema {agent.output_schema}")
-                except Exception as e:
-                    logger.warning(f"Could not validate output: {e}. Returning raw output.")
-                    validated_output = raw_output
+                validated_output = validate_code_output(raw_output, agent.output_schema)
                 
                 # Add assistant message
                 if hasattr(validated_output, 'model_dump'):
@@ -506,7 +473,19 @@ class Runtime:
             
             # Check if this is an LLM tool (handles its own context)
             is_llm_tool = "llm" in tool.name.lower()
-            tool_call_id = f"call_{tool.name}"
+            
+            # Filter kwargs for serialization - exclude Context and other non-JSON-serializable objects
+            serializable_kwargs = {}
+            for k, v in kwargs.items():
+                if not isinstance(v, Context):
+                    try:
+                        json.dumps(v)
+                        serializable_kwargs[k] = v
+                    except (TypeError, ValueError):
+                        # Skip non-serializable values
+                        pass
+            
+            tool_call_id = f"call_{tool.name}_{hashlib.sha256(json.dumps(serializable_kwargs, sort_keys=True).encode()).hexdigest()[:8]}"
             
             if not is_llm_tool:
                 # Add function call message (assistant calling the tool)
@@ -591,53 +570,32 @@ class Runtime:
             import ast
             exec_code = generated_code
             try:
+                from .code_utils import (
+                    extract_non_stub_async_functions,
+                    has_code_structure,
+                    wrap_code_body_as_function,
+                    extract_execution_result,
+                )
+                
                 tree = ast.parse(generated_code)
-                # Look for non-stub async function definitions
-                func_defs = []
-                for node in tree.body:
-                    if isinstance(node, ast.AsyncFunctionDef):
-                        # Check if it's a stub (raises NotImplementedError)
-                        is_stub = any(
-                            isinstance(stmt, ast.Raise) and 
-                            isinstance(stmt.exc, ast.Call) and
-                            isinstance(stmt.exc.func, ast.Name) and
-                            stmt.exc.func.id == "NotImplementedError"
-                            for stmt in node.body
-                        )
-                        if not is_stub:
-                            func_defs.append(node)
+                func_defs = extract_non_stub_async_functions(generated_code)
                 
                 if func_defs:
                     # Code has a main function definition - append a call to it
-                    func_name = func_defs[0].name
+                    func_name = func_defs[0][0]
                     exec_code = generated_code + f"\n\noutput = await {func_name}(**validated.model_dump())"
-                elif any(isinstance(node, (ast.While, ast.For, ast.If)) for node in tree.body):
+                elif has_code_structure(generated_code, 'while_loop') or has_code_structure(generated_code, 'for_loop') or has_code_structure(generated_code, 'if_statement'):
                     # Code is executable statements (like IsLoop template) - use as-is
                     # It should set 'output' variable itself
                     exec_code = generated_code
                 else:
                     # Code might be just a function body - wrap it
-                    # Build function signature from input schema
-                    if hasattr(agent.input_schema, 'model_fields'):
-                        params = []
-                        for field_name, field_info in agent.input_schema.model_fields.items():
-                            if hasattr(field_info.annotation, '__name__'):
-                                field_type = field_info.annotation.__name__
-                            else:
-                                field_type = str(field_info.annotation)
-                            params.append(f"{field_name}: {field_type}")
-                        param_str = ", ".join(params)
-                    else:
-                        param_str = "**kwargs"
-                    
-                    output_name = agent.output_schema.__name__ if hasattr(agent.output_schema, '__name__') else "Output"
-                    
-                    # Wrap body with function signature
-                    import textwrap
-                    exec_code = f"async def {agent.name}({param_str}) -> {output_name}:\n"
-                    dedented_body = textwrap.dedent(generated_code)
-                    indented_body = textwrap.indent(dedented_body, "    ")
-                    exec_code += indented_body
+                    exec_code = wrap_code_body_as_function(
+                        generated_code,
+                        agent.name,
+                        agent.input_schema,
+                        output_schema_name=agent.output_schema.__name__ if hasattr(agent.output_schema, '__name__') else "Output"
+                    )
                     exec_code += f"\n\noutput = await {agent.name}(**validated.model_dump())"
                     
             except SyntaxError:
@@ -675,7 +633,7 @@ class Runtime:
         
         The LLM tool handles function calling and auto-adds a Done terminal tool if needed.
         When output_schema is set, LLM returns a properly typed instance.
-        The template just calls LLM with Output as the output_schema.
+        The template just calls LLM with the agent's output schema as the output_schema.
         """
         # Find LLM tool
         llm_tool = None
@@ -687,7 +645,10 @@ class Runtime:
         if not llm_tool:
             raise RuntimeError("No LLM tool found for loop template")
         
-        # Simple template: call LLM in a loop with Output as output_schema
+        # Get the output schema class name (e.g., "AgentOutput")
+        output_schema_name = agent.output_schema.__name__ if hasattr(agent.output_schema, '__name__') else 'Output'
+        
+        # Simple template: call LLM in a loop with agent's output schema as output_schema
         code = f"""# Agentic loop for {agent.name}
 # Get context - use provided context parameter or default to "main"
 try:
@@ -702,7 +663,7 @@ except NameError:
 input_str = str(validated.model_dump() if hasattr(validated, 'model_dump') else validated)
 instruction = f"Complete this task: {{input_str}}. When done, call the 'done' tool with the final result."
 
-# Call LLM with all non-LLM tools until we get an Output
+# Call LLM with all non-LLM tools until we get an output
 max_iterations = 20
 available_tools = [{", ".join(f"{t.name}" for t in agent.get_all_tools() if "llm" not in t.name.lower())}]
 
@@ -712,11 +673,11 @@ while iteration < max_iterations:
         content=instruction if iteration == 0 else "Continue with the task.",
         tools=available_tools,
         context=context,
-        output_schema=Output
+        output_schema={output_schema_name}
     )
     
-    # If we got an Output instance, we're done
-    if isinstance(output, Output):
+    # If we got an output instance, we're done
+    if isinstance(output, {output_schema_name}):
         break
     
     iteration += 1

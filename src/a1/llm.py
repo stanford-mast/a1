@@ -33,9 +33,7 @@ def no_context():
 
 
 class LLMInput(BaseModel):
-    """Input for LLM tool."""
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    
+    """Input for LLM tool - simplified for definition code."""
     content: str = Field(..., description="Input prompt or query")
     tools: Optional[SkipValidation[List[Tool]]] = Field(default=None, description="Tools available for function calling")
     context: Optional[SkipValidation[Any]] = Field(default=None, description="Context object for message history tracking")
@@ -43,11 +41,8 @@ class LLMInput(BaseModel):
 
 
 class LLMOutput(BaseModel):
-    """Output from LLM tool."""
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    
+    """Output from LLM tool - simplified for definition code."""
     content: str = Field(..., description="Text response from LLM")
-    tools_called: Optional[SkipValidation[List[Tool]]] = Field(default=None, description="Tools that were called by LLM")
 
 
 def _tool_to_openai_schema(tool: Tool) -> Optional[Dict[str, Any]]:
@@ -172,24 +167,26 @@ def LLM(model: str, input_schema: Optional[type[BaseModel]] = None, output_schem
         """
         Execute LLM call with optional function calling support.
         
-        If tools are provided but none are terminal, automatically adds a Done tool.
-        If output_schema is provided, returns an instance of that schema.
+        Returns typed output based on output_schema if provided, otherwise string.
+        Supports JSON parsing from LLM responses to structured output types.
+        
+        If no tools provided, prepends "Respond with ONLY exactly what is requested: " to prompt.
+        Also extracts large data structures (objects/lists) from content, labels them A, B, etc,
+        and references them in the prompt for cleaner requests.
         
         Args:
             content: The prompt/query to send to the LLM
             tools: Optional list of tools available for function calling
             context: Optional Context object for message history tracking
-            output_schema: Optional schema to structure the output (overrides default)
+            output_schema: Optional Pydantic model to parse LLM response into
         
         Returns:
-            If output_schema provided: instance of that schema
-            If terminal tool called: LLMOutput with result as content
-            If tools were called: LLMOutput with content and tools_called list
-            If no tools: just the string content
+            Instance of output_schema if provided, LLMOutput if tools called, otherwise string
         """
         from .context import Context
+        import re
         
-        # Use the override output_schema or fall back to the one set during LLM creation
+        # Determine the target output schema (passed to Done tool if needed)
         target_output_schema = output_schema
         
         # Use provided context or create throwaway
@@ -201,22 +198,58 @@ def LLM(model: str, input_schema: Optional[type[BaseModel]] = None, output_schem
             has_terminal = any(t.is_terminal for t in tools)
             if not has_terminal:
                 from .builtin_tools import Done
-                # Add Done tool with the target output schema if provided
                 tools = tools + [Done(output_schema=target_output_schema)]
         
+        # Process content: extract large data structures and add "Respond with ONLY" prefix if no tools
+        processed_content = content
+        if not tools or len(tools) == 0:
+            # Extract large objects/lists and label them
+            data_parts = []
+            label_map = {}
+            labels = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            label_idx = 0
+            
+            # Find JSON-like structures: {...} and [...]
+            obj_pattern = r'\{[^{}]*\}'  # Simple objects (no nesting for now)
+            arr_pattern = r'\[[^\[\]]*\]'  # Simple arrays
+            
+            for pattern in [obj_pattern, arr_pattern]:
+                for match in re.finditer(pattern, processed_content):
+                    matched_str = match.group(0)
+                    if len(matched_str) > 50:  # Only extract large structures
+                        label = labels[label_idx % len(labels)]
+                        label_map[matched_str] = label
+                        label_idx += 1
+            
+            # Build the final content with data first
+            if label_map:
+                final_parts = []
+                # Add labeled data first
+                for data_str, label in label_map.items():
+                    final_parts.append(f"{label} = {data_str}")
+                final_parts.append("")
+                # Add modified prompt with references instead of inline data
+                modified_prompt = processed_content
+                for data_str, label in label_map.items():
+                    modified_prompt = modified_prompt.replace(data_str, label)
+                final_parts.append("Respond with ONLY exactly what is requested:")
+                final_parts.append(modified_prompt)
+                processed_content = "\n".join(final_parts)
+            else:
+                # No large data structures, just add the prefix
+                processed_content = f"Respond with ONLY exactly what is requested:\n{content}"
+        
         # Add user message to context
-        context.user(content)
+        context.user(processed_content)
         
         # Prepare messages for API call
         messages = context.to_dict_list()
         
-        # Convert tools to OpenAI function calling format (any-llm uses this format)
-        # Filter out None values (tools that couldn't be serialized, like LLM tools)
+        # Convert tools to OpenAI function calling format
         api_tools = None
         if tools:
             schemas = [_tool_to_openai_schema(tool) for tool in tools]
             api_tools = [s for s in schemas if s is not None]
-            # If no tools could be serialized, set to None
             if not api_tools:
                 api_tools = None
         
@@ -224,14 +257,12 @@ def LLM(model: str, input_schema: Optional[type[BaseModel]] = None, output_schem
         if ":" in model:
             provider, model_name = model.split(":", 1)
         else:
-            # Try to infer provider from model name
             provider = _infer_provider(model)
             model_name = model
         
         logger.info(f"Calling {provider}:{model_name} with {len(messages)} messages")
         
-        # Call LLM via any-llm (async version)
-        # If tools are provided, set tool_choice to "auto" to allow the model to decide
+        # Call LLM via any-llm
         call_params = {
             "model": model_name,
             "provider": provider,
@@ -240,36 +271,29 @@ def LLM(model: str, input_schema: Optional[type[BaseModel]] = None, output_schem
         
         if api_tools:
             call_params["tools"] = api_tools
-            call_params["tool_choice"] = "auto"  # Allow model to decide whether to call tools
+            call_params["tool_choice"] = "auto"
         
         # Call LLM with retry logic for tool validation errors
         max_retries = 2
-        last_error = None
         for attempt in range(max_retries):
             try:
                 response = await acompletion(**call_params)
                 break  # Success
             except Exception as e:
-                # Check if this is a tool validation error from the model
+                # Retry without tool_choice if this looks like a tool validation error
                 error_msg = str(e)
-                if "tool call validation failed" in error_msg and "done<|channel|>" in error_msg:
-                    logger.warning(f"Attempt {attempt+1}: Model generated invalid tool name with Harmony tokens")
-                    last_error = e
-                    # Retry by removing tool_choice constraint - let the model try again
-                    if attempt < max_retries - 1:
-                        call_params.pop("tool_choice", None)
-                        logger.info("Retrying without tool_choice constraint")
-                        continue
-                # Re-raise if it's a different error or we've exhausted retries
+                if "tool call validation failed" in error_msg and attempt < max_retries - 1:
+                    logger.warning(f"Attempt {attempt+1}: Tool validation error, retrying")
+                    call_params.pop("tool_choice", None)
+                    continue
                 raise
         
-        # Extract response - any-llm normalizes to OpenAI format
+        # Extract response
         message = response.choices[0].message
         response_content = message.content or ""
         tool_calls = getattr(message, 'tool_calls', None)
         
         # Add assistant message to context
-        tool_call_dicts = None
         if tool_calls:
             tool_call_dicts = [
                 {
@@ -281,93 +305,94 @@ def LLM(model: str, input_schema: Optional[type[BaseModel]] = None, output_schem
                     }
                 } for tc in tool_calls
             ]
-        context.assistant(response_content, tool_calls=tool_call_dicts)
+            context.assistant(response_content, tool_calls=tool_call_dicts)
+        else:
+            context.assistant(response_content)
         
-        # If there are tool calls, execute them and track which tools were called
+        # Execute tool calls if present
         tools_called_list = []
         if tool_calls and tools:
             logger.info(f"Executing {len(tool_calls)} tool calls")
             
             for tool_call in tool_calls:
-                # Clean the function name to remove Harmony special tokens
                 func_name = _clean_tool_name(tool_call.function.name)
                 base_name = _extract_base_tool_name(func_name)
                 func_args = json.loads(tool_call.function.arguments)
                 
-                # Find and execute tool - try multiple matching strategies:
-                # 1. Exact match on cleaned name
-                # 2. Match on original tool name
-                # 3. Match on base name extracted from the tool call
+                # Find tool by name (try multiple strategies)
                 tool = next((t for t in tools if 
                     t.name == func_name or 
                     t.name == base_name or
                     _clean_tool_name(t.name) == func_name or
                     _extract_base_tool_name(t.name) == base_name
                 ), None)
+                
                 if tool:
                     try:
                         logger.info(f"Calling tool: {func_name}({func_args})")
                         result = await tool(**func_args)
                         
-                        # Add tool result to context
+                        # Add result to context
                         context.tool(
                             content=json.dumps(result) if isinstance(result, dict) else str(result),
                             name=func_name,
                             tool_call_id=tool_call.id
                         )
                         logger.info(f"Tool {func_name} result: {result}")
-                        
-                        # Track the tool that was called
                         tools_called_list.append(tool)
                         
-                        # If this is a terminal tool, return the result directly
-                        # (it should already be the target output schema if one was specified)
+                        # If terminal tool, return the result
                         if tool.is_terminal:
-                            # If result is already the target schema, return it directly
+                            # If target_output_schema is set and result matches it, return as-is
                             if target_output_schema and isinstance(result, target_output_schema):
                                 return result
-                            # Otherwise convert to appropriate format
-                            elif target_output_schema and target_output_schema != LLMOutput:
-                                # Try to construct target schema from result
+                            # Try to convert result to target schema if needed
+                            elif target_output_schema:
                                 if isinstance(result, dict):
                                     return target_output_schema(**result)
                                 else:
-                                    # Wrap in first field of target schema
                                     field_name = list(target_output_schema.model_fields.keys())[0]
                                     return target_output_schema(**{field_name: result})
+                            # Default: return as LLMOutput
                             else:
-                                # Default behavior - return LLMOutput with content
-                                if hasattr(result, 'model_dump'):
-                                    result_dict = result.model_dump()
-                                    result_content = str(list(result_dict.values())[0]) if result_dict else str(result)
-                                elif isinstance(result, dict):
-                                    result_content = str(list(result.values())[0]) if result else str(result)
-                                else:
-                                    result_content = str(result)
-                                
-                                return LLMOutput(
-                                    content=result_content,
-                                    tools_called=tools_called_list
-                                )
+                                return LLMOutput(content=str(result), tools_called=[tool])
                     except Exception as e:
                         logger.error(f"Error executing {func_name}: {e}")
-                        # Add error to context
                         context.tool(
-                            content=f"Error executing {func_name}: {str(e)}",
+                            content=f"Error: {str(e)}",
                             name=func_name,
                             tool_call_id=tool_call.id
                         )
                 else:
-                    logger.warning(f"Tool {func_name} not found in available tools")
+                    logger.warning(f"Tool {func_name} not found")
         
-        # Return based on whether tools were called
+        # Return based on output_schema or tools called
         if tools_called_list:
-            return LLMOutput(
-                content=response_content,
-                tools_called=tools_called_list
-            )
+            # If tools were called, return LLMOutput
+            return LLMOutput(content=response_content, tools_called=tools_called_list)
+        elif output_schema and output_schema != LLMOutput:
+            # Try to parse response into output_schema
+            try:
+                # First try parsing as JSON
+                parsed_data = json.loads(response_content)
+                if isinstance(parsed_data, dict):
+                    return output_schema(**parsed_data)
+                else:
+                    # If JSON is a primitive, wrap it in the schema
+                    field_name = list(output_schema.model_fields.keys())[0]
+                    return output_schema(**{field_name: parsed_data})
+            except (json.JSONDecodeError, ValueError, TypeError) as e:
+                # If JSON parsing fails, try wrapping the content directly
+                logger.debug(f"Could not parse response as JSON, wrapping in schema: {e}")
+                try:
+                    field_name = list(output_schema.model_fields.keys())[0]
+                    return output_schema(**{field_name: response_content})
+                except Exception as e2:
+                    # Fall back to returning string
+                    logger.warning(f"Could not construct output schema: {e2}")
+                    return response_content
         else:
-            # Simple case - just return the content string
+            # Default: return string content
             return response_content
     
     return Tool(

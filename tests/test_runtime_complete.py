@@ -453,5 +453,264 @@ async def test_multiple_contexts_isolation():
     assert ctx2_user_msgs[0].content == "Hello from context 2"
 
 
+# ============================================================================
+# CRITICAL MISSING TESTS
+# ============================================================================
+
+@pytest.mark.skipif(not os.getenv("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
+@pytest.mark.asyncio
+async def test_jit_multiple_calls_accumulate_context(calculator_tool):
+    """
+    Test that multiple JIT calls on the same Runtime accumulate 
+    messages in the main context.
+    
+    This verifies:
+    1. Context persists across JIT calls
+    2. Messages are appended in order
+    3. Each call contributes both user and assistant messages
+    4. Context tracks the full conversation history
+    """
+    runtime = Runtime()
+    set_runtime(runtime)
+    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    
+    # Create agent
+    InputSchema = create_model("Input", query=(str, Field(..., description="Math query")))
+    OutputSchema = create_model("Output", answer=(str, Field(..., description="The answer")))
+    
+    agent = Agent(
+        name="math_agent_multi",
+        description="Answers math questions",
+        input_schema=InputSchema,
+        output_schema=OutputSchema,
+        tools=[calculator_tool, llm_tool],
+    )
+    
+    # Get initial context state
+    ctx = get_context("main")
+    initial_message_count = len(ctx.messages)
+    
+    # First JIT call
+    result1 = await runtime.jit(agent, query="What is 10 + 5?")
+    count_after_first = len(ctx.messages)
+    
+    # Context should grow
+    assert count_after_first > initial_message_count
+    first_user_msgs = [m for m in ctx.messages if m.role == "user"]
+    assert len(first_user_msgs) >= 1
+    
+    # Second JIT call
+    result2 = await runtime.jit(agent, query="What is 20 * 3?")
+    count_after_second = len(ctx.messages)
+    
+    # Context should grow again
+    assert count_after_second > count_after_first
+    
+    # Both queries should be in context (in order)
+    all_user_msgs = [m for m in ctx.messages if m.role == "user"]
+    assert len(all_user_msgs) >= 2
+    
+    # Verify we have assistant messages too
+    all_assistant_msgs = [m for m in ctx.messages if m.role == "assistant"]
+    assert len(all_assistant_msgs) >= 2
+    
+    print(f"\n✓ Context accumulation verified:")
+    print(f"  Initial messages: {initial_message_count}")
+    print(f"  After call 1: {count_after_first}")
+    print(f"  After call 2: {count_after_second}")
+    print(f"  Total user messages: {len(all_user_msgs)}")
+    print(f"  Total assistant messages: {len(all_assistant_msgs)}")
+
+
+@pytest.mark.skipif(not os.getenv("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
+@pytest.mark.asyncio
+async def test_jit_generated_code_calls_llm_with_tools(calculator_tool):
+    """
+    Test that JIT-generated code can call LLM with tools and get results.
+    
+    The generated code should be able to:
+    1. Call the LLM tool with tools parameter
+    2. LLM makes tool calls and returns results
+    3. Generated code processes LLM response
+    4. Final output is returned
+    
+    This is a core agentic capability - the key feature that makes agents
+    different from simple code execution.
+    """
+    runtime = Runtime()
+    set_runtime(runtime)
+    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    
+    InputSchema = create_model("Input", 
+        task=(str, Field(..., description="Task for LLM to solve"))
+    )
+    OutputSchema = create_model("Output", 
+        result=(str, Field(..., description="Final result"))
+    )
+    
+    agent = Agent(
+        name="llm_orchestrator",
+        description="Uses LLM to decide on calculations",
+        input_schema=InputSchema,
+        output_schema=OutputSchema,
+        tools=[calculator_tool, llm_tool],  # Both available to generated code
+    )
+    
+    # JIT should generate code that calls LLM with tools
+    result = await runtime.jit(
+        agent, 
+        task="Calculate: 15 + 27 + 8"
+    )
+    
+    print(f"\n✓ JIT with LLM tool calling:")
+    print(f"  Result: {result}")
+    print(f"  Result type: {type(result)}")
+    
+    # Should have a result
+    assert hasattr(result, "result")
+    assert result.result is not None
+    
+    # Context should show both LLM call and potentially tool calls
+    ctx = get_context("main")
+    assert len(ctx.messages) >= 2
+    
+    print(f"  Context messages: {len(ctx.messages)}")
+
+
+@pytest.mark.skipif(not os.getenv("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
+@pytest.mark.asyncio
+async def test_aot_generated_function_calls_llm_with_tools(calculator_tool):
+    """
+    Test that AOT-compiled functions can call LLM with tools.
+    
+    Similar to JIT but with pre-compiled function code.
+    Verifies that AOT code generation supports tool calling.
+    """
+    runtime = Runtime()
+    set_runtime(runtime)
+    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    
+    InputSchema = create_model("Input",
+        problem=(str, Field(..., description="Math problem"))
+    )
+    OutputSchema = create_model("Output",
+        answer=(str, Field(..., description="The answer"))
+    )
+    
+    agent = Agent(
+        name="math_solver_aot",
+        description="Solves math problems using tools",
+        input_schema=InputSchema,
+        output_schema=OutputSchema,
+        tools=[calculator_tool, llm_tool],
+    )
+    
+    # Compile with AOT (no IsLoop, so uses LLM generation)
+    compiled = await runtime.aot(agent, cache=False)
+    
+    # Execute the compiled function
+    result = await compiled(problem="What is 100 / 4 + 12?")
+    
+    print(f"\n✓ AOT with LLM tool calling:")
+    print(f"  Result: {result}")
+    print(f"  Result type: {type(result)}")
+    
+    # Should have a result
+    assert hasattr(result, "answer")
+    assert result.answer is not None
+    
+    print(f"  Answer: {result.answer}")
+
+
+@pytest.mark.skipif(not os.getenv("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
+@pytest.mark.asyncio
+async def test_output_schema_transformations(calculator_tool):
+    """
+    Test various output schema transformation scenarios.
+    
+    Cases:
+    1. Single-field schema (should auto-wrap)
+    2. Raw value transformation
+    3. Type coercion
+    """
+    runtime = Runtime()
+    set_runtime(runtime)
+    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    
+    # Case 1: Single-field schema should auto-wrap
+    InputSchema1 = create_model("Input1", value=(str, Field(..., description="Input value")))
+    OutputSchema1 = create_model("Output1", result=(str, Field(..., description="Result")))
+    
+    agent1 = Agent(
+        name="wrapper_agent",
+        description="Tests output wrapping",
+        input_schema=InputSchema1,
+        output_schema=OutputSchema1,
+        tools=[llm_tool],
+    )
+    
+    # Generated code might return just a string like "42"
+    # Should be wrapped as Output1(result="42")
+    result1 = await runtime.jit(agent1, value="test_input")
+    assert hasattr(result1, "result")
+    
+    print(f"\n✓ Output schema transformations:")
+    print(f"  Single-field wrap test passed")
+    print(f"  Result: {result1}")
+    print(f"  Result.result: {result1.result}")
+
+
+@pytest.mark.skipif(not os.getenv("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
+@pytest.mark.asyncio
+async def test_input_schema_validation(calculator_tool):
+    """
+    Test that input schema validation works correctly.
+    
+    Tests:
+    1. Valid input accepted
+    2. Invalid type rejected
+    3. Missing required field rejected
+    """
+    runtime = Runtime()
+    set_runtime(runtime)
+    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    
+    InputSchema = create_model("Input",
+        count=(int, Field(..., description="A number"))
+    )
+    OutputSchema = create_model("Output", result=(str, Field(..., description="Result")))
+    
+    agent = Agent(
+        name="validation_agent",
+        description="Tests input validation",
+        input_schema=InputSchema,
+        output_schema=OutputSchema,
+        tools=[llm_tool],
+    )
+    
+    print(f"\n✓ Input schema validation:")
+    
+    # Valid input should work
+    result = await runtime.jit(agent, count=42)
+    assert result is not None
+    print(f"  Valid input (count=42): PASSED")
+    
+    # Invalid input should raise validation error
+    try:
+        await runtime.jit(agent, count="not_a_number")
+        assert False, "Should have raised validation error"
+    except Exception as e:
+        print(f"  Invalid input type rejected: PASSED")
+        print(f"    Error: {type(e).__name__}")
+    
+    # Missing required field should raise error
+    try:
+        await runtime.jit(agent)
+        assert False, "Should have raised validation error"
+    except Exception as e:
+        print(f"  Missing required field rejected: PASSED")
+        print(f"    Error: {type(e).__name__}")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

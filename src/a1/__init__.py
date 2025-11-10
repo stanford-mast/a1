@@ -45,6 +45,7 @@ from .strategies import (
     Cost, BaseCost, QuantitativeCriteria
 )
 from .rag import FileSystemRAG, SQLRAG
+import a1.code_utils as code_utils
 
 __version__ = "0.1.0"
 
