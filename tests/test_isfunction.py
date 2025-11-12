@@ -1,12 +1,11 @@
 """Tests for IsFunction verifier."""
 
-import pytest
 from a1.codecheck import IsFunction
 
 
 class TestIsFunction:
     """Test IsFunction verifier."""
-    
+
     def test_valid_async_function(self):
         """Test valid async function passes."""
         verifier = IsFunction()
@@ -18,7 +17,7 @@ async def my_task(x: int) -> str:
         is_valid, error = verifier.verify(code)
         assert is_valid
         assert error is None
-    
+
     def test_missing_function(self):
         """Test code without function fails."""
         verifier = IsFunction()
@@ -29,7 +28,7 @@ result = f"Result: {x}"
         is_valid, error = verifier.verify(code)
         assert not is_valid
         assert "No async function implementation found" in error
-    
+
     def test_multiple_functions(self):
         """Test multiple functions fail."""
         verifier = IsFunction()
@@ -43,7 +42,7 @@ async def func2(y: int) -> str:
         is_valid, error = verifier.verify(code)
         assert not is_valid
         assert "Multiple function definitions" in error
-    
+
     def test_sync_function_fails(self):
         """Test non-async function fails."""
         verifier = IsFunction()
@@ -54,7 +53,7 @@ def my_task(x: int) -> str:
         is_valid, error = verifier.verify(code)
         assert not is_valid
         # Should fail because it's not async
-    
+
     def test_syntax_error(self):
         """Test syntax error is caught."""
         verifier = IsFunction()

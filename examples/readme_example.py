@@ -10,7 +10,6 @@ Run with: uv run --with a1-compiler --no-project -- python test_readme_example.p
 
 import asyncio
 import os
-import sys
 from pathlib import Path
 
 # Load environment variables from .env
@@ -20,16 +19,17 @@ if env_path.exists():
     with open(env_path) as f:
         for line in f:
             line = line.strip()
-            if line and not line.startswith('#') and '=' in line:
-                key, value = line.split('=', 1)
+            if line and not line.startswith("#") and "=" in line:
+                key, value = line.split("=", 1)
                 os.environ[key.strip()] = value.strip()
     print(f"✓ Loaded .env from {env_path}")
     print(f"  Environment keys: {', '.join([k for k in os.environ.keys() if 'API' in k or 'TOKEN' in k])}")
 else:
     print(f"⚠ .env not found at {env_path}")
 
-from a1 import Agent, tool, Tool, LLM, Done
 from pydantic import BaseModel
+
+from a1 import LLM, Agent, tool
 
 
 # Define a simple tool
@@ -62,10 +62,10 @@ agent = Agent(
 # Use the agent with AOT and JIT compilation
 async def main():
     """Test the agent with both AOT and JIT execution."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Testing a1-compiler Package")
-    print("="*70)
-    
+    print("=" * 70)
+
     # Test that agent can be compiled
     print("\n--- Testing AOT Compilation ---")
     try:
@@ -76,8 +76,9 @@ async def main():
     except Exception as e:
         print(f"✗ AOT compilation failed: {e}")
         import traceback
+
         traceback.print_exc()
-    
+
     # Test agent properties
     print("\n--- Testing Agent Properties ---")
     try:
@@ -87,7 +88,7 @@ async def main():
         print(f"✓ Agent output schema: {agent.output_schema.__name__}")
     except Exception as e:
         print(f"✗ Agent properties failed: {e}")
-    
+
     # Test tool execution directly
     print("\n--- Testing Tool Execution ---")
     try:
@@ -95,19 +96,19 @@ async def main():
         print(f"✓ add(2, 2) = {add_result}")
     except Exception as e:
         print(f"✗ Tool execution failed: {e}")
-    
+
     # Test agent as a tool (basic execution without LLM setup)
     print("\n--- Testing Agent as Tool (AOT) ---")
     try:
         # For this to work, the agent would need to actually be able to run
         # But without proper LLM setup, JIT won't work. AOT just validates it can compile.
-        print(f"✓ Agent can be compiled to Tool (validated above)")
+        print("✓ Agent can be compiled to Tool (validated above)")
     except Exception as e:
         print(f"✗ Agent execution failed: {e}")
-    
-    print("\n" + "="*70)
+
+    print("\n" + "=" * 70)
     print("✅ a1-compiler package working correctly!")
-    print("="*70)
+    print("=" * 70)
 
 
 if __name__ == "__main__":
