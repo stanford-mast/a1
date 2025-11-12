@@ -27,7 +27,7 @@ class TestStrategyFields:
     
     def test_strategy_with_cost_field(self):
         """Test Strategy with custom cost field."""
-        scorer = LLM("gpt-4o-mini")
+        scorer = LLM("gpt-4.1-mini")
         cost = QuantitativeCriteria(
             expression="How complex is this code? (0=simple, 10=complex)",
             llm=scorer,
@@ -46,7 +46,7 @@ class TestStrategyFields:
     def test_strategy_with_all_fields(self):
         """Test Strategy with verify, cost, and generate fields."""
         verify = IsFunction()
-        scorer = LLM("gpt-4o-mini")
+        scorer = LLM("gpt-4.1-mini")
         cost = QuantitativeCriteria(
             expression="Rate complexity",
             llm=scorer,
@@ -152,7 +152,7 @@ class TestStrategyInAOTJIT:
             name="test_agent",
             description="Test agent",
             output_schema=OutputSchema,
-            tools=[LLM("gpt-4o-mini")]
+            tools=[LLM("gpt-4.1-mini")]
         )
         
         strategy = Strategy(
@@ -177,7 +177,7 @@ class TestStrategyInAOTJIT:
             name="test_agent",
             description="Return 'hello'",
             output_schema=OutputSchema,
-            tools=[LLM("gpt-4o-mini")]
+            tools=[LLM("gpt-4.1-mini")]
         )
         
         strategy = Strategy(

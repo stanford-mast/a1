@@ -155,7 +155,7 @@ async def test_langchain_integration():
     
     # Create LangChain agent
     try:
-        model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        model = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
         lc_agent = create_agent(
             model,
             tools=[add, multiply],

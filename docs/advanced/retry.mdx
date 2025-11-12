@@ -362,13 +362,13 @@ llm = LLM(
 ```python
 # For complex structured output, use capable models
 capable_llm = LLM(
-    "gpt-4o",  # Better at following schemas
+    "gpt-4.1",  # Better at following schemas
     retry_strategy=RetryStrategy(max_iterations=2, num_candidates=2)
 )
 
 # Less capable models may need more retries
 budget_llm = LLM(
-    "gpt-4o-mini",
+    "gpt-4.1-mini",
     retry_strategy=RetryStrategy(max_iterations=5, num_candidates=3)
 )
 ```

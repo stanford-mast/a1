@@ -392,7 +392,7 @@ class Skill(BaseModel):
         # Use default LLM if not provided
         if llm is None:
             from .builtin_tools import LLM
-            llm = LLM("gpt-4o-mini")
+            llm = LLM("gpt-4.1-mini")
         
         # Fetch content from URLs using crawl4ai
         crawler = AsyncWebCrawler()

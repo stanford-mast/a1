@@ -529,7 +529,7 @@ class QualitativeCriteria(Verify):
     
     Args:
         expression: Natural language criteria description (e.g., "Code is readable and well-structured")
-        llm: Tool instance for LLM calls (e.g., LLM("gpt-4o-mini"))
+        llm: Tool instance for LLM calls (e.g., LLM("gpt-4.1-mini"))
         num_samples: Number of parallel LLM calls to make (default: 1)
         min_samples_for_aggregation: Minimum successful samples needed (default: 1)
         min_pass: Minimum samples that must return True for overall True (default: 1)

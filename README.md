@@ -59,7 +59,7 @@ agent = Agent(
     description="Solves simple math problems",
     input_schema=MathInput, # like DSPy modules, A1 agent behavior is specified via schemas. The difference is that in A1, an engineer may implement a Verify function to enforce agent-specific constraints such as order of tool calling.
     output_schema=MathOutput,
-    tools=[add, LLM(model="gpt-4o")],  # in A1, LLMs are tools!
+    tools=[add, LLM(model="gpt-4.1")],  # in A1, LLMs are tools!
 )
 
 async def main():

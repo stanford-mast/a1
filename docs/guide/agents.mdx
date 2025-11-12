@@ -1,9 +1,7 @@
 ---
 title: Agents
-description: Define agents with schemas and tools
+description: Specify what agents can do
 ---
-
-An **Agent** combines tools, schemas, and behavior into a reusable unit that can be compiled or executed.
 
 ## Creating an Agent
 
@@ -27,33 +25,20 @@ agent = Agent(
     description="Solves mathematical expressions",
     input_schema=MathInput,
     output_schema=MathOutput,
-    tools=[add, multiply, LLM(model="gpt-4o")],
+    tools=[add, multiply, LLM(model="gpt-4.1")],
 )
 ```
 
-## Execution Modes
+## Running Agents
 
-### AOT (Ahead-of-Time)
-
-Compile once, execute many times:
+Execute agents with JIT (Just-in-Time):
 
 ```python
-# Compile
-compiled = await agent.aot()
-
-# Use multiple times
-for i in range(100):
-    result = await compiled.execute(expression=f"{i} + {i+1}")
-    print(result)
+result = await agent.jit(problem="What is 2 + 3?")
+print(result.answer)
 ```
 
-### JIT (Just-in-Time)
-
-Optimize for each unique input:
-
-```python
-result = await agent.jit(expression="(2 + 3) * 4")
-```
+For AOT compilation to turn agents into reusable tools, see [Compilation](compilation.md).
 
 ## Agent Properties
 

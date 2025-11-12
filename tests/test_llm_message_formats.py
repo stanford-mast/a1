@@ -109,7 +109,7 @@ def inspect_context_messages(ctx: Context, provider_name: str):
 @pytest.mark.asyncio
 async def test_openai_message_format(calculator_tool):
     """Test OpenAI message format after tool calling."""
-    llm_tool = LLM("gpt-4o-mini")
+    llm_tool = LLM("gpt-4.1-mini")
     
     agent = Agent(
         name="test_agent",
@@ -131,7 +131,7 @@ async def test_openai_message_format(calculator_tool):
         })
         
         # Inspect the context
-        messages = inspect_context_messages(ctx, "OpenAI (gpt-4o-mini)")
+        messages = inspect_context_messages(ctx, "OpenAI (gpt-4.1-mini)")
         
         # Validate structure
         assert len(messages) >= 3  # user, assistant with tool_calls, tool result
@@ -264,7 +264,7 @@ async def test_cross_provider_comparison(calculator_tool):
     providers = []
     
     if os.environ.get("OPENAI_API_KEY"):
-        providers.append(("OpenAI", "gpt-4o-mini", "What is 5 + 3?"))
+        providers.append(("OpenAI", "gpt-4.1-mini", "What is 5 + 3?"))
     
     if os.environ.get("ANTHROPIC_API_KEY"):
         providers.append(("Anthropic", "claude-3-5-haiku-20241022", "Calculate 12 * 4"))

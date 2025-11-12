@@ -83,7 +83,7 @@ async def test_primitive_int():
         description="Solves math problems",
         input_schema=MathInput,
         output_schema=MathOutput,
-        tools=[add, LLM(model="gpt-4o")],
+        tools=[add, LLM(model="gpt-4.1")],
     )
     
     compiled = await agent.aot()
@@ -107,7 +107,7 @@ async def test_primitive_string():
         description="Greets people",
         input_schema=GreetInput,
         output_schema=GreetOutput,
-        tools=[greet, LLM(model="gpt-4o")],
+        tools=[greet, LLM(model="gpt-4.1")],
     )
     
     compiled = await agent.aot()
@@ -131,7 +131,7 @@ async def test_primitive_bool():
         description="Checks if positive",
         input_schema=CheckInput,
         output_schema=CheckOutput,
-        tools=[is_positive, LLM(model="gpt-4o")],
+        tools=[is_positive, LLM(model="gpt-4.1")],
     )
     
     compiled = await agent.aot()
@@ -149,7 +149,7 @@ async def test_complex_pydantic():
         description="Creates greeting with person info",
         input_schema=PersonGreetingInput,
         output_schema=PersonGreetingOutput,
-        tools=[create_greeting, LLM(model="gpt-4o")],
+        tools=[create_greeting, LLM(model="gpt-4.1")],
     )
     
     compiled = await agent.aot()

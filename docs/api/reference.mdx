@@ -85,7 +85,7 @@ LLMs are tools that call language models.
 from a1 import LLM
 
 llm = LLM(
-    model="gpt-4o",
+    model="gpt-4.1",
     retry_strategy=None,
     output_schema=None
 )
@@ -94,12 +94,12 @@ llm = LLM(
 agent = Agent(
     name="agent",
     description="Uses LLM",
-    tools=[my_tool, LLM("gpt-4o-mini")]
+    tools=[my_tool, LLM("gpt-4.1-mini")]
 )
 ```
 
 **Parameters:**
-- `model: str` - Model identifier (e.g., "gpt-4o", "claude-3-5-sonnet")
+- `model: str` - Model identifier (e.g., "gpt-4.1", "claude-3-5-sonnet")
 - `retry_strategy: Optional[RetryStrategy]` - Retry configuration
 - `output_schema: Optional[type[BaseModel]]` - Structured output schema
 
@@ -218,7 +218,7 @@ fs_tools = rag.filesystem("/path/to/files")
 agent = Agent(
     name="rag_agent",
     description="Uses RAG",
-    tools=[*db_tools, *fs_tools, LLM("gpt-4o")]
+    tools=[*db_tools, *fs_tools, LLM("gpt-4.1")]
 )
 ```
 

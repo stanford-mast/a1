@@ -322,7 +322,7 @@ class QuantitativeCriteria(Cost):
     
     Args:
         expression: Natural language cost criteria (e.g., "How complex is this code? (0=simple, 10=very complex)")
-        llm: Tool instance for LLM calls (e.g., LLM("gpt-4o-mini"))
+        llm: Tool instance for LLM calls (e.g., LLM("gpt-4.1-mini"))
         min: Minimum valid score (default: 0)
         max: Maximum valid score (default: 10)
         agg: Aggregation method: 'min', 'max', 'avg', 'med' (default: 'avg')

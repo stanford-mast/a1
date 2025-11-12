@@ -55,7 +55,7 @@ agent = Agent(
     input_schema=MathInput,
     output_schema=MathOutput,
     tools=[add],
-    llm=LLM(model="gpt-4o"),  # Use configured LLM from .env
+    llm=LLM(model="gpt-4.1"),  # Use configured LLM from .env
 )
 
 

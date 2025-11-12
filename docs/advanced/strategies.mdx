@@ -41,8 +41,8 @@ result = runtime.jit(agent, "Calculate fibonacci of 10")
 ```python
 from a1 import Strategy, QualitativeCriteria, QuantitativeCriteria, LLM, IsFunction
 
-evaluator = LLM("gpt-4o-mini")
-scorer = LLM("gpt-4o-mini")
+evaluator = LLM("gpt-4.1-mini")
+scorer = LLM("gpt-4.1-mini")
 
 strategy = Strategy(
     # Retry configuration (inherited from RetryStrategy)
@@ -185,7 +185,7 @@ from a1 import BaseGenerate, LLM
 # Custom generator with specific LLM
 class MyGenerate(BaseGenerate):
     def __init__(self):
-        self.llm = LLM("gpt-4o")  # Use specific model
+        self.llm = LLM("gpt-4.1")  # Use specific model
         
     async def generate(
         self, 
@@ -486,7 +486,7 @@ class ComprehensiveVerify(BaseVerify):
         self.is_function = IsFunction()
         self.llm_check = QualitativeCriteria(
             expression="Code handles errors properly",
-            llm=LLM("gpt-4o-mini"),
+            llm=LLM("gpt-4.1-mini"),
             num_samples=3,
             min_pass=2
         )
@@ -509,7 +509,7 @@ strategy = Strategy(
     verify=ComprehensiveVerify(),
     cost=QuantitativeCriteria(
         expression="Rate complexity (0=simple, 10=complex)",
-        llm=LLM("gpt-4o-mini"),
+        llm=LLM("gpt-4.1-mini"),
         min=0, max=10,
         agg="avg",
         num_samples=3

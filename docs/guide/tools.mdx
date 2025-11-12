@@ -1,11 +1,11 @@
 ---
 title: Tools
-description: Create tools from functions, APIs, MCP servers, or databases
+description: Create tools for agents to take action
 ---
 
-Tools are async functions that agents can call. Create them from Python functions, OpenAPI specs, MCP servers, DB connections, or even documentation URLs.
+## Python Functions
 
-## From Python Functions
+Create tools from any async function:
 
 ```python
 from a1 import tool
@@ -21,97 +21,43 @@ async def calculate(expression: str) -> float:
     return eval(expression)
 ```
 
-## From OpenAPI
+Supports primitive and complex return types (Pydantic models, lists, dicts).
+
+## OpenAPI
+
+Create tools from OpenAPI specifications:
 
 ```python
 from a1 import openapi
 
 tools = openapi.from_spec("https://api.example.com/openapi.json")
-
-```python
-@tool(name="process", description="Process data")
-async def process(
-    data: List[str],
-    batch_size: int = 32
-) -> Dict[str, Any]:
-    ...
 ```
 
-### Descriptions
+## Model Context Protocol (MCP)
 
-Descriptions help the LLM understand what tools do:
-
-```python
-@tool(
-    name="api_call",
-    description="Make an HTTP request to an endpoint"
-)
-async def api_call(url: str, method: str = "GET") -> str:
-    ...
-```
-
-### Return Types
-
-Tools support any return type:
+Create tools from MCP servers:
 
 ```python
-# Primitive returns
-@tool
-async def get_count() -> int:
-    return 42
+from a1 import mcp
 
-# Pydantic returns
-@tool
-async def get_person() -> PersonModel:
-    return PersonModel(name="Alice", age=30)
-
-# Complex types
-@tool
-async def search() -> List[Dict[str, Any]]:
-    return [{"id": 1, "name": "result"}]
+tools = await mcp.from_server("path/to/mcp/server")
 ```
 
-## Built-in Tools
+## LLM
 
-A1 provides several built-in tools:
-
-### LLM
-
-Call language models:
+LLMs are tools that call language models:
 
 ```python
 from a1 import LLM
 
-llm = LLM(model="gpt-4o")
+llm = LLM("gpt-4.1")
 ```
 
-### RAG
+Use in agents like any other tool.
 
-Access data:
+## ToolSet
 
-```python
-from a1 import RAG
-
-# File system access
-rag = RAG(filesystem_path="/data")
-
-# Database access
-rag = RAG(dataframe=my_df)
-```
-
-### Done
-
-Mark workflow completion:
-
-```python
-from a1 import Done
-
-done = Done()
-```
-
-## ToolSets
-
-Group related tools:
+Group related tools together to organize hierarchically:
 
 ```python
 from a1 import ToolSet
@@ -119,27 +65,22 @@ from a1 import ToolSet
 math_tools = ToolSet(
     name="math",
     description="Mathematical operations",
-    tools=[add, multiply, divide, subtract]
+    tools=[add, multiply, divide]
 )
 
 agent = Agent(
-    tools=[math_tools, LLM(model="gpt-4o")]
+    tools=[math_tools, LLM("gpt-4.1")]
 )
 ```
 
-## Errors and Validation
+## Done
 
-Tools are automatically validated:
+Built-in `is_terminal=True` tool for marking workflow completion:
 
 ```python
-try:
-    result = await tool(invalid_arg="wrong")
-except ValueError as e:
-    print(f"Validation error: {e}")
+from a1 import Done
+
+done = Done()  # Agent can call this to signal completion
 ```
 
-## Next Steps
 
-- Learn about [Agents](agents.md)
-- Understand [Compilation](compilation.md)
-- Explore [RAG](rag.md)

@@ -3,11 +3,9 @@ title: Compilation
 description: AOT compilation and JIT execution modes
 ---
 
-A1 compiles agents to Python code using two modes: AOT (compile once, run many times) or JIT (compile and run immediately for each unique input).
-
 ## AOT (Ahead-of-Time)
 
-Compile once, execute repeatedly with the same code. Best for production workflows.
+Compile once, execute repeatedly with the same code. Best for consistency. The compiled code may include LLM calls if an LLM tools is supplied to the agent.
 
 ```python
 # Compile once
@@ -146,7 +144,7 @@ class MyCodeGenerator(BaseGenerate):
         # return (definition_code, generated_code) tuple
         pass
 
-runtime = Runtime(generate=MyCodeGenerator(llm_tool=LLM("gpt-4o")))
+runtime = Runtime(generate=MyCodeGenerator(llm_tool=LLM("gpt-4.1")))
 result = await agent.jit(problem="...", strategy=Strategy())
 ```
 

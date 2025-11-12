@@ -32,7 +32,7 @@ Returns a **boolean** (True/False) based on whether code meets qualitative crite
 from a1 import QualitativeCriteria, LLM, Agent, Runtime, Strategy
 
 # Create LLM for evaluation
-evaluator = LLM("gpt-4o-mini")
+evaluator = LLM("gpt-4.1-mini")
 
 # Define qualitative criterion
 is_readable = QualitativeCriteria(
@@ -64,7 +64,7 @@ Run **multiple parallel evaluations** and use majority voting:
 # Run 5 parallel evaluations, require at least 4 to pass
 is_high_quality = QualitativeCriteria(
     expression="Code is production-ready with proper error handling",
-    llm=LLM("gpt-4o"),
+    llm=LLM("gpt-4.1"),
     num_samples=5,           # 5 parallel LLM calls
     min_samples_for_aggregation=4,  # Need at least 4 successful responses
     min_pass=3               # Require 3 out of 5 to vote "pass"
@@ -78,7 +78,7 @@ strategy = Strategy(verify=is_high_quality)
 - **expression** (str): Natural language description of what constitutes a "pass"
   - Example: `"Code is efficient and avoids unnecessary loops"`
   - Example: `"Code properly handles edge cases and errors"`
-- **llm** (Tool): LLM tool to use for evaluation (e.g., `LLM("gpt-4o-mini")`)
+- **llm** (Tool): LLM tool to use for evaluation (e.g., `LLM("gpt-4.1-mini")`)
 - **num_samples** (int, default=1): Number of parallel evaluations to run
 - **min_samples_for_aggregation** (int, default=1): Minimum successful responses needed
 - **min_pass** (int, default=1): Number of "pass" votes needed (majority voting)
@@ -95,7 +95,7 @@ strategy = Strategy(verify=is_high_quality)
 
 ```python
 # Combine multiple qualitative checks
-evaluator = LLM("gpt-4o-mini")
+evaluator = LLM("gpt-4.1-mini")
 
 is_readable = QualitativeCriteria(
     expression="Code is readable and well-documented",
@@ -141,7 +141,7 @@ Returns a **numeric score** (e.g., 0-10) based on quantitative criteria.
 from a1 import QuantitativeCriteria, LLM, Agent, Runtime, Strategy
 
 # Create LLM for scoring
-scorer = LLM("gpt-4o-mini")
+scorer = LLM("gpt-4.1-mini")
 
 # Define quantitative criterion
 complexity_score = QuantitativeCriteria(
@@ -176,7 +176,7 @@ Run **multiple parallel evaluations** and aggregate scores:
 # Run 5 parallel evaluations and take the median score
 readability_score = QuantitativeCriteria(
     expression="Rate code readability from 0 (unreadable) to 10 (crystal clear)",
-    llm=LLM("gpt-4o"),
+    llm=LLM("gpt-4.1"),
     min=0.0,
     max=10.0,
     agg="med",               # Use median (robust to outliers)
@@ -216,7 +216,7 @@ strategy = Strategy(cost=readability_score)
 
 ```python
 # Track multiple quantitative metrics
-scorer = LLM("gpt-4o-mini")
+scorer = LLM("gpt-4.1-mini")
 
 complexity = QuantitativeCriteria(
     expression="Rate algorithmic complexity (0=O(1), 10=O(n³) or worse)",
@@ -262,8 +262,8 @@ Criteria are typically used as part of a `Strategy` for code generation:
 ```python
 from a1 import Strategy, QualitativeCriteria, QuantitativeCriteria, LLM
 
-evaluator = LLM("gpt-4o-mini")
-scorer = LLM("gpt-4o-mini")
+evaluator = LLM("gpt-4.1-mini")
+scorer = LLM("gpt-4.1-mini")
 
 # Qualitative verification
 is_valid = QualitativeCriteria(
@@ -349,7 +349,7 @@ agent = Agent(
 # Production code - use multiple samples
 production_check = QualitativeCriteria(
     expression="Code is production-ready",
-    llm=LLM("gpt-4o"),  # Use stronger model
+    llm=LLM("gpt-4.1"),  # Use stronger model
     num_samples=5,      # More samples
     min_pass=4          # High bar
 )
@@ -357,7 +357,7 @@ production_check = QualitativeCriteria(
 # Development code - single sample is fine
 dev_check = QualitativeCriteria(
     expression="Code is basically correct",
-    llm=LLM("gpt-4o-mini"),  # Faster/cheaper
+    llm=LLM("gpt-4.1-mini"),  # Faster/cheaper
     num_samples=1
 )
 ```
@@ -456,7 +456,7 @@ quality_gate = QualitativeCriteria(
     - Has type hints
     - Handles errors properly
     - No security vulnerabilities""",
-    llm=LLM("gpt-4o"),
+    llm=LLM("gpt-4.1"),
     num_samples=3,
     min_pass=2
 )
@@ -472,7 +472,7 @@ complexity_estimator = QuantitativeCriteria(
     3-5: Moderate (simple loops, conditionals)
     6-8: Complex (nested loops, recursion)
     9-10: Very complex (dynamic programming, graph algorithms)""",
-    llm=LLM("gpt-4o-mini"),
+    llm=LLM("gpt-4.1-mini"),
     min=0, max=10,
     agg="avg",
     num_samples=5
@@ -490,7 +490,7 @@ readability = QuantitativeCriteria(
     0 = Confusing, hard to follow
     
     Consider: variable names, function names, structure, comments""",
-    llm=LLM("gpt-4o"),
+    llm=LLM("gpt-4.1"),
     min=0, max=10,
     agg="med",  # Median to avoid outliers
     num_samples=5
@@ -507,7 +507,7 @@ test_coverage = QualitativeCriteria(
     - Edge cases (empty input, None, etc.)
     - Error cases (invalid input)
     - Boundary conditions""",
-    llm=LLM("gpt-4o"),
+    llm=LLM("gpt-4.1"),
     num_samples=3,
     min_pass=2
 )
@@ -524,7 +524,7 @@ performance = QuantitativeCriteria(
     6 = O(n log n) - acceptable
     9 = O(n²) - poor
     10 = O(2^n) or worse - very poor""",
-    llm=LLM("gpt-4o"),
+    llm=LLM("gpt-4.1"),
     min=0, max=10,
     agg="avg",
     num_samples=3

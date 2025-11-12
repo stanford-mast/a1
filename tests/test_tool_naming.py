@@ -142,7 +142,7 @@ class TestToolNamingInDefinitionCode:
     
     def test_tool_naming_in_definition_code(self):
         """Test short tool names (llm_a, llm_b) appear in generated definition code."""
-        llm_tool = LLM("gpt-4o-mini")
+        llm_tool = LLM("gpt-4.1-mini")
         
         agent = Agent(
             name="qa_agent",
@@ -163,7 +163,7 @@ class TestToolNamingInDefinitionCode:
     
     def test_tool_naming_map_comment(self):
         """Test that short tool names are used in function definitions."""
-        llm_tool = LLM("gpt-4o-mini")
+        llm_tool = LLM("gpt-4.1-mini")
         
         agent = Agent(
             name="qa_agent",

@@ -1,9 +1,7 @@
 ---
 title: Skills
-description: Add knowledge via code snippets or documentation
+description: Give your agent know-how
 ---
-
-Skills provide agents with reusable knowledge patterns, code snippets, or procedures. They can be defined manually or crawled from documentation websites.
 
 ## Creating Skills
 
@@ -29,7 +27,7 @@ agent = Agent(
     name="researcher",
     description="Researches topics",
     skills=[skill],
-    tools=[search_tool, LLM("gpt-4o")]
+    tools=[search_tool, LLM("gpt-4.1")]
 )
 ```
 
@@ -66,7 +64,7 @@ researcher_skill = Skill(
 agent = Agent(
     name="research_agent",
     skills=[researcher_skill],
-    tools=[LLM(model="gpt-4o")],
+    tools=[LLM(model="gpt-4.1")],
 )
 ```
 

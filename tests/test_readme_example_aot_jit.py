@@ -40,7 +40,7 @@ agent = Agent(
     description="Solves simple math problems",
     input_schema=MathInput,
     output_schema=MathOutput,
-    tools=[add, LLM(model="gpt-4o")],
+    tools=[add, LLM(model="gpt-4.1")],
 )
 
 

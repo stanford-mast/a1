@@ -85,7 +85,7 @@ result = await runtime.execute(calculator, a=10, b=5, operation="add")
 ### LLM
 
 Supported providers:
-- `"gpt-4o"`, `"gpt-4o-mini"` (OpenAI)
+- `"gpt-4.1"`, `"gpt-4.1-mini"` (OpenAI)
 - `"claude-3-5-sonnet-20241022"` (Anthropic)
 - `"groq:openai/gpt-oss-20b"` (Groq)
 - `"mistral:mistral-small-latest"` (Mistral)
@@ -94,7 +94,7 @@ Supported providers:
 from a1 import LLM
 
 # Simple LLM tool
-llm = LLM("gpt-4o-mini")
+llm = LLM("gpt-4.1-mini")
 
 # LLM with specific role
 llm = LLM("claude-3-5-sonnet-20241022", role="expert")
@@ -379,7 +379,7 @@ agent = Agent(
     description="Solves math problems",
     input_schema=MathInput,
     output_schema=MathOutput,
-    tools=[calculator, LLM("gpt-4o-mini")]
+    tools=[calculator, LLM("gpt-4.1-mini")]
 )
 
 # Execute

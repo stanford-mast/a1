@@ -3,29 +3,31 @@ title: A1
 description: The agent-to-code compiler
 ---
 
-A1 is a new kind of agent framework. It takes an `Agent` (a set of tools and a description) and compiles either AOT (ahead-of-time) into a `Tool` or JIT (just-in-time) for immediate execution optimized for each unique agent input.
+## What is A1?
+
+A1 is a direct replacement for agent frameworks. While prior art generates a static while loop program for each agent, an agent compiler generates a program optimized for each unique agent input.
 
 ## Why use an agent compiler?
 
-1. **Safety** - Generates code for each unique agent input, shrinking the prompt injection attack surface
-2. **Speed** - Makes codegen practical with aggressive parallelism and static checking
-3. **Determinism** - Optimizes via an engineered cost function (e.g., replacing LLM calls with RegEx)
-4. **Flexibility** - Tools from OpenAPI, MCP servers, DB connections, fsspec paths, Python functions, or doc URLs
+1. **Safety** - Minimizes exposure of sensitive data to an LLM.
+2. **Speed** - Up to 10x faster code generation.
+3. **Determinism** - Code is optimized for minimal non-deterministic behavior (e.g. LLM calls replaced with code where possible).
+4. **Flexibility** - Skills and Tools from any existing OpenAPI, MCP server, databases, fsspec paths, Python functions
 
 ## Key Features
 
 <CardGroup cols={2}>
   <Card title="Agents" icon="robot" href="/guide/agents">
-    Define agents with schemas and tools
+    Specify _what_ is expected of an agent
   </Card>
   <Card title="Tools" icon="wrench" href="/guide/tools">
-    Create tools from functions, APIs, or databases
+    Create tools from existing APIs and databases
   </Card>
   <Card title="Skills" icon="book-open" href="/guide/skills">
-    Add knowledge via code snippets or documentation
+    Create skills to codify _how_ to do things
   </Card>
   <Card title="Compilation" icon="bolt" href="/guide/compilation">
-    AOT compilation or JIT execution
+    Run your agent
   </Card>
 </CardGroup>
 
@@ -54,7 +56,7 @@ agent = Agent(
     description="Solves simple math problems",
     input_schema=MathInput,
     output_schema=MathOutput,
-    tools=[add, LLM("gpt-4o")],
+    tools=[add, LLM("gpt-4.1")],
 )
 
 # Compile ahead-of-time

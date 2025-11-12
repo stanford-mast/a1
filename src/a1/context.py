@@ -221,7 +221,7 @@ class SummarizationCompact(Compact):
         model: Model to use for summarization
     """
     
-    def __init__(self, max_messages: int = 20, keep_recent: int = 5, model: str = "gpt-4o-mini"):
+    def __init__(self, max_messages: int = 20, keep_recent: int = 5, model: str = "gpt-4.1-mini"):
         self.max_messages = max_messages
         self.keep_recent = keep_recent
         self.model = model

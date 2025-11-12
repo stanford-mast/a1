@@ -57,5 +57,26 @@
         ]
       }
     ]
+  },
+  "navbar": {
+    "primary": {
+      "type": "button",
+      "label": "GitHub",
+      "href": "https://github.com/stanford-mast/a1"
+    },
+    "links": [
+      {
+        "label": "a1project.org",
+        "href": "http://a1project.org"
+      },
+      {
+        "label": "realcalebwin",
+        "href": "https://x.com/realcalebwin"
+      },
+      {
+        "label": "Discord",
+        "href": "https://discord.gg/NqrkJwYYh4"
+      }
+    ]
   }
 }
