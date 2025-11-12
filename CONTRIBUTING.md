@@ -27,6 +27,13 @@ Thank you for your interest in contributing to A1! This document provides guidel
    .venv\Scripts\activate  # On Windows
    ```
 
+5. **Install pre-commit hooks:**
+   ```bash
+   uv run pre-commit install
+   ```
+   
+   This will automatically run `ruff` linting and formatting on staged files before each commit.
+
 ## Development Workflow
 
 ### Running Tests
@@ -47,8 +54,13 @@ uv run pytest tests/test_models.py::TestTool::test_tool_decorator_simple
 
 ### Code Quality
 
-We use `ruff` for linting and formatting:
+We use `ruff` for linting and formatting. Pre-commit hooks are configured to automatically run ruff on staged files before each commit.
 
+**Automatic checks (via pre-commit):**
+- Pre-commit hooks automatically run `ruff check --fix` and `ruff format` on staged Python files before each commit
+- If checks fail, the commit will be blocked until issues are resolved
+
+**Manual checks:**
 ```bash
 # Format code
 uv run ruff format .

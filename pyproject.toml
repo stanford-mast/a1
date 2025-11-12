@@ -83,5 +83,6 @@ dev-dependencies = [
 [dependency-groups]
 dev = [
     "duckdb-engine>=0.17.0",
+    "pre-commit>=4.4.0",
     "twine>=6.2.0",
 ]
