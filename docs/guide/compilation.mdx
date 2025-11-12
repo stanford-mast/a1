@@ -1,11 +1,29 @@
 ---
 title: Compilation
-description: AOT compilation and JIT execution modes
+description: How to run agents in A1
 ---
 
-## AOT (Ahead-of-Time)
+## Run Agents
 
-Compile once, execute repeatedly with the same code. Best for consistency. The compiled code may include LLM calls if an LLM tools is supplied to the agent.
+Execute agents with JIT (Just-in-Time):
+
+```python
+from a1 import Agent, LLM
+
+agent = Agent(
+    name="calculator",
+    tools=[LLM("gpt-4.1")]
+)
+
+# Compile and execute immediately
+result = await agent.jit(problem="What is 2 + 2?")
+```
+
+JIT generates code optimized for each input, then executes it.
+
+## Compile Agents into Tools
+
+AOT (Ahead-of-Time) compilation turns agents into reusable tools:
 
 ```python
 # Compile once
@@ -16,182 +34,92 @@ for i in range(1000):
     result = await compiled.execute(problem=f"Input {i}")
 ```
 
-## JIT (Just-in-Time)
-
-Generate and execute code immediately, optimized for each unique input.
+**Caching**: Compiled agents are cached in `.a1/` directory by default.
 
 ```python
-# Compile and execute
-result = await agent.jit(problem="What is 2 + 2?")
+# Use cached version if available
+compiled = await agent.aot(cache=True)
 
-**Key characteristics:**
-- Generated code is consistent across inputs
-- Caches compiled function for speed
-- Good for well-defined, stable workflows
-- Cost: One generation per agent, many executions
-
-### JIT (Just-in-Time) - For Specialized Behavior
-
-Compile fresh for each input. Generates code optimized specifically for that input's characteristics.
-
-**Best for:**
-- Variable inputs with different characteristics
-- One-off queries or dynamic tasks
-- Ad-hoc analysis where optimization matters
-- Exploring new problem spaces
-
-```python
-# Compile and execute for this specific input
-result = await agent.jit(problem="What is the capital of France?")
-
-# Each input may generate different code
-result2 = await agent.jit(problem="Calculate the derivative of x^2")
-# ^ Different code, optimized for mathematical problems
+# Force recompilation
+compiled = await agent.aot(cache=False)
 ```
 
-**Key characteristics:**
-- Code generation is optimized for each input
-- May produce different code for different inputs
-- Slower due to compilation per call
-- Better results for diverse problem spaces
-
-## When to Use Which
+**Agents as tools**: Compiled agents are tools that can be used in other agents.
 
 ```python
-# AOT: Production recommendation system
-recommendation_agent = Agent(name="recommender", ...)
-compiled = await recommendation_agent.aot()
-for user in users:
-    recommendation = await compiled.execute(user_id=user.id)
+# Compile specialist agent
+math_agent = Agent(name="math", tools=[LLM("gpt-4.1")])
+compiled_math = await math_agent.aot()
 
-# JIT: Interactive research assistant
-research_agent = Agent(name="researcher", ...)
-answer1 = await research_agent.jit(query="What is photosynthesis?")
-answer2 = await research_agent.jit(query="Solve: 2x + 3 = 7")
-# ^ Different code generated for different domains
+# Use in another agent
+coordinator = Agent(
+    name="coordinator",
+    tools=[compiled_math, LLM("gpt-4.1")]
+)
+
+result = await coordinator.jit(task="Calculate and analyze data")
 ```
 
-## Compilation Process
+## How It Works
 
 Both AOT and JIT follow this pipeline:
 
 ```
-1. Code Generation (LLM creates code)
-   ↓
-2. Verification (checks for syntax/logic errors)
-   ↓
-3. Cost Estimation (ranks multiple candidates)
-   ↓
-4. Execution (run best candidate)
+1. Generate → LLM creates code
+2. Verify → Check syntax/logic
+3. Cost → Rank candidates
+4. Execute → Run best code
 ```
 
-## Strategy - Compilation Configuration
+### Configuration
 
-`Strategy` controls **how** code generation works (separate from the underlying generation/verification/cost primitives):
+Control code generation with `Strategy`:
 
 ```python
 from a1 import Strategy
 
 strategy = Strategy(
-    num_candidates=5,              # Generate 5 code candidates in parallel
-    max_iterations=3,              # Retry up to 3 times if generation fails
-    min_candidates_for_comparison=2,
-    accept_cost_threshold=None,    # Early exit threshold
-    compare_cost_threshold=None,   # Early comparison threshold
+    num_candidates=5,    # Generate 5 parallel candidates
+    max_iterations=3     # Retry up to 3 times on failure
 )
 
-# Use in compilation
-await agent.aot(strategy=strategy)
-await agent.jit(strategy=strategy)
+compiled = await agent.aot(strategy=strategy)
+result = await agent.jit(problem="...", strategy=strategy)
 ```
 
-**num_candidates**: 
-- More candidates = better code selection but slower (3-5 is typical)
-- Default: 1 (single candidate)
+See [Strategies](../advanced/strategies.md) for detailed configuration.
 
-**max_iterations**:
-- Retry limit if generation fails
-- Each retry uses previous errors as context
-- Default: 3
+### Agentic While Loop
 
-For more detailed customization, see [Custom Strategies](../advanced/strategies.md).
-
-## Caching
-
-AOT compilation caches by default:
+Use `IsLoop` verifier to compile agents into standard agentic while loops (like LangGraph, AutoGen):
 
 ```python
-# Check cache, use cached version if available
-compiled = await agent.aot(cache=True)
+from a1 import Strategy, IsLoop
 
-# Force regeneration (ignore cache)
-compiled = await agent.aot(cache=False)
+strategy = Strategy(verify=IsLoop())
 
-# Compiled agents are stored in .a1 directory by default
+# Compiles to while loop structure
+compiled = await agent.aot(strategy=strategy)
 ```
 
-## Custom Generation
+This creates an ahead-of-time compiled Python function with a while loop, instead of interpreted runtime execution.
 
-Customize how code is generated:
+### Performance Tuning
 
-```python
-from a1 import BaseGenerate, Runtime
-from a1.builtin_tools import LLM
-
-class MyCodeGenerator(BaseGenerate):
-    async def generate(self, agent, task, return_function=False, past_attempts=None):
-        # Your custom generation logic
-        # return (definition_code, generated_code) tuple
-        pass
-
-runtime = Runtime(generate=MyCodeGenerator(llm_tool=LLM("gpt-4.1")))
-result = await agent.jit(problem="...", strategy=Strategy())
-```
-
-## Custom Verification
-
-Customize code verification:
-
-```python
-from a1 import BaseVerify, Runtime
-
-class MyVerifier(BaseVerify):
-    def verify(self, code, agent):
-        # Your custom verification logic
-        # return (is_valid, error_message) tuple
-        pass
-
-runtime = Runtime(verify=[MyVerifier()])
-result = await agent.jit(problem="...", strategy=Strategy())
-```
-
-## Performance Tuning
-
-### Multiple Candidates
-
-Generate multiple candidates and use the lowest-cost one:
+**Parallel candidates**: Generate multiple code candidates in parallel and select the best.
 
 ```python
 strategy = Strategy(num_candidates=10)
 result = await agent.jit(problem="...", strategy=strategy)
-# Generates 10 candidates in parallel, selects the best
+# Generates 10 candidates in parallel, picks lowest cost
 ```
 
-### Parallel Generation
-
-A1 generates multiple candidates in parallel by default, significantly reducing wait time:
+**Candidate generation** happens in parallel:
 
 ```
-Candidate 1: [Generation] ---------> [Verification] ------> [Cost]
-Candidate 2: [Generation] ---------> [Verification] ------> [Cost]
-Candidate 3: [Generation] ---------> [Verification] ------> [Cost]
-             (all in parallel)
+Candidate 1: [Generate] → [Verify] → [Cost]
+Candidate 2: [Generate] → [Verify] → [Cost]  (parallel)
+Candidate 3: [Generate] → [Verify] → [Cost]
 ```
 
-## Next Steps
-
-- Learn about [Agents](agents.md)
-- Explore [Skills](skills.md) for domain knowledge
-- Create [Tools](tools.md) for agent capabilities
-
-````
+For more advanced configuration (custom verify, cost, generate), see [Strategies](../advanced/strategies.md).

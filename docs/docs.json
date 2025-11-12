@@ -35,8 +35,6 @@
           "guide/tools",
           "guide/skills",
           "guide/compilation",
-          "guide/llm",
-          "guide/rag",
           "guide/context"
         ]
       },
@@ -44,15 +42,7 @@
         "group": "Advanced",
         "pages": [
           "advanced/strategies",
-          "advanced/retry",
-          "advanced/serialization",
           "advanced/observability",
-          "advanced/criteria"
-        ]
-      },
-      {
-        "group": "API",
-        "pages": [
           "api/reference"
         ]
       }

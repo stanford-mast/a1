@@ -45,15 +45,74 @@ tools = await mcp.from_server("path/to/mcp/server")
 
 ## LLM
 
-LLMs are tools that call language models:
+LLMs are tools that call language models with structured output and retry logic:
 
 ```python
-from a1 import LLM
+from a1 import LLM, RetryStrategy
+from pydantic import BaseModel
 
+class Answer(BaseModel):
+    result: float
+    explanation: str
+
+# Basic LLM tool
 llm = LLM("gpt-4.1")
+
+# With structured output
+llm = LLM(
+    model="gpt-4.1",
+    output_schema=Answer
+)
+
+# Custom retry strategy (default: 3 candidates × 3 retries)
+llm = LLM(
+    model="gpt-4.1",
+    retry_strategy=RetryStrategy(max_iterations=5, num_candidates=2)
+)
 ```
 
-Use in agents like any other tool.
+**Supported providers**: OpenAI, Anthropic, Google, Groq (via `groq:model-name`)
+
+Use LLM tools like any other tool in agents.
+
+## RAG
+
+RAG provides readonly or full access to databases and filesystems:
+
+```python
+from a1 import RAG, Database, FileSystem
+
+# Readonly database access (SELECT only)
+rag = RAG(database="sqlite:///data.db")
+
+# Readonly filesystem access (ls, grep, cat)
+rag = RAG(filesystem="/path/to/files")
+
+agent = Agent(
+    name="safe_agent",
+    tools=[rag.get_toolset(), LLM("gpt-4.1")]
+)
+```
+
+**Readonly tools**: `sql` (SELECT), `ls` (list), `grep` (search), `cat` (read)
+
+For full read/write access, use `Database` or `FileSystem` directly:
+
+```python
+# Full database access (SELECT, INSERT, UPDATE, DELETE)
+db = Database("postgresql://user:pass@host/db")
+
+# Full filesystem access (ls, grep, cat, write_file, delete_file)
+fs = FileSystem("s3://bucket/path")
+
+agent = Agent(
+    tools=[db.get_toolset(), fs.get_toolset(), LLM("gpt-4.1")]
+)
+```
+
+**Supported databases**: PostgreSQL, MySQL, SQLite, DuckDB, SQL Server, Oracle
+
+**Supported paths**: Local filesystems, S3, Google Cloud Storage, Azure Blob Storage
 
 ## ToolSet
 
@@ -81,6 +140,19 @@ Built-in `is_terminal=True` tool for marking workflow completion:
 from a1 import Done
 
 done = Done()  # Agent can call this to signal completion
+```
+
+## Descriptions
+
+Add descriptions to help LLMs understand tools:
+
+```python
+@tool(
+    name="api_call",
+    description="Make an HTTP request to an endpoint"
+)
+async def api_call(url: str, method: str = "GET") -> str:
+    ...
 ```
 
 

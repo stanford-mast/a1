@@ -40,20 +40,39 @@ ctx.tool(content="result", name="tool_name", tool_call_id="id")
 ctx.system("You are helpful")
 ```
 
+## Context Types
+
+A1 uses three context types:
+
+- **`main`**: Clean successful execution history (user inputs + outputs)
+- **`attempt_*`**: Code generation/execution attempts (e.g., `attempt_a`, `attempt_b`)
+- **`intermediate_*`**: LLM calls from within generated code (e.g., `intermediate_a`)
+
+```python
+from a1 import get_runtime
+
+runtime = get_runtime()
+
+# Access all contexts
+for name, ctx in runtime.CTX.items():
+    print(f"{name}: {len(ctx)} messages")
+```
+
 ## When Messages Are Added
 
 **During JIT execution:**
-- User input added at start
-- Assistant output added at end
-- Tool calls added during execution
+- User input added to `main` at start
+- Assistant output added to `main` at end
+- Tool calls added to `main` during execution
 
 **During AOT compilation:**
-- Nothing added to main context
-- Compilation attempts tracked in separate contexts
+- Nothing added to `main` context
+- Compilation attempts tracked in `attempt_*` contexts
+- Each candidate gets its own attempt context
 
 **During compiled tool execution:**
 - Same as regular tool execution
-- Nothing added to main context
+- Nothing added to `main` context (it's just a tool)
 
 ## Runtime
 
@@ -71,23 +90,30 @@ with runtime:
 
 Runtime handles:
 - Context lifecycle (creation, cleanup)
-- Named contexts (`main`, `attempt_a`, etc.)
+- Named contexts (`main`, `attempt_a`, `intermediate_a`, etc.)
 - Context isolation between sessions
 
 ## Persistence
 
-Save and load contexts:
+Save and load contexts and runtime state:
 
 ```python
-from a1 import Context
+from a1 import Context, Runtime
 
-# Auto-save on every change
+# Auto-save context on every change
 ctx = Context.from_file("chat.json", keep_updated=True)
 ctx.user("Hello")  # Automatically saved
 
-# Load later
+# Load context
 ctx = Context.from_file("chat.json")
 
-# Or save entire runtime
+# Auto-save entire runtime and all contexts
 runtime = Runtime.from_file("session.json", keep_updated=True)
+
+with runtime:
+    ctx = get_context("main")
+    ctx.user("Hello")  # All contexts auto-saved to session.json
+
+# Load runtime with all contexts restored
+runtime = Runtime.from_file("session.json")
 ```

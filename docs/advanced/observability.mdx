@@ -1,14 +1,11 @@
 ---
 title: Observability
+description: Debug and monitor agent execution
 ---
 
-# Observability
+## Context Tracking
 
-Monitor and trace agent execution with OpenTelemetry and comprehensive context tracking.
-
-## Context Observability
-
-A1 tracks all agent interactions across labeled contexts for full debugging visibility:
+View all agent interactions across execution:
 
 ```python
 from a1 import get_runtime
@@ -19,133 +16,119 @@ runtime = get_runtime()
 for name, ctx in runtime.CTX.items():
     print(f"{name}: {len(ctx.messages)} messages")
 
-# Get full chronological history
+# Get chronological history
 all_messages = runtime.get_full_context()
-print(f"Total messages: {len(all_messages)}")
 
-# Filter by context labels
-main_messages = runtime.get_full_context("main")
-attempt_messages = runtime.get_full_context("attempt")
-intermediate_messages = runtime.get_full_context("intermediate")
-
-print(f"Main: {len(main_messages)}")
-print(f"Attempts: {len(attempt_messages)}")
-print(f"Intermediate: {len(intermediate_messages)}")
-
-# Analyze by timestamp
-from datetime import datetime, timedelta
-recent = [m for m in all_messages if m.timestamp > datetime.now() - timedelta(hours=1)]
-
-# Group by role
-by_role = {}
-for msg in all_messages:
-    by_role.setdefault(msg.role, []).append(msg)
+# Filter by context type
+main_messages = runtime.get_full_context("main")          # User inputs/outputs
+attempt_messages = runtime.get_full_context("attempt")    # Code generation retries
+intermediate_messages = runtime.get_full_context("intermediate")  # LLM calls in code
 ```
 
-### Context Labels
+**Context types**:
+- `main` - Successful user inputs and outputs
+- `attempt_*` - Code generation attempts and failures
+- `intermediate_*` - LLM calls from within generated code
 
-- **`main`**: Successful user inputs and outputs
-- **`attempt_*`**: Code generation retries and failures (e.g., `attempt_a`, `attempt_b`)
-- **`intermediate_*`**: LLM calls from within generated code
+## Debugging Failed Attempts
 
-### Debugging Failed Attempts
+See what went wrong during code generation:
 
 ```python
-# View all retry attempts
 runtime = get_runtime()
-attempt_contexts = {k: v for k, v in runtime.CTX.items() if k.startswith("attempt_")}
 
-for name, ctx in attempt_contexts.items():
-    print(f"\n{name}:")
-    for msg in ctx.messages:
-        if msg.role == "user" and "error" in msg.content.lower():
-            print(f"  Error: {msg.content}")
+# View retry attempts
+for name, ctx in runtime.CTX.items():
+    if name.startswith("attempt_"):
+        print(f"\n{name}:")
+        for msg in ctx.messages:
+            if "error" in msg.content.lower():
+                print(f"  {msg.content}")
 ```
 
-## OpenTelemetry Setup
+## Logging
 
-A1 integrates with OpenTelemetry for observability:
+Enable debug logs to see execution details:
+
+```python
+import logging
+
+logging.basicConfig(level=logging.INFO)
+
+# See code generation and execution
+result = await agent.jit(problem="Calculate fibonacci")
+
+# Logs show:
+# - Code generation attempts
+# - Verification results
+# - Cost scores
+# - Selected candidate
+```
+
+## OpenTelemetry
+
+A1 integrates with OpenTelemetry for distributed tracing:
 
 ```python
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.exporter.jaeger import JaegerExporter
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
-# Configure tracing
-jaeger_exporter = JaegerExporter(agent_host_name="localhost")
-trace.set_tracer_provider(TracerProvider())
-trace.get_tracer_provider().add_span_processor(
-    BatchSpanProcessor(jaeger_exporter)
-)
-```
+# Setup tracing
+provider = TracerProvider()
+processor = BatchSpanProcessor(OTLPSpanExporter())
+provider.add_span_processor(processor)
+trace.set_tracer_provider(provider)
 
-## Tracing Agent Execution
-
-Agent execution is automatically traced:
-
-```python
+# Agent execution automatically traced
 result = await agent.jit(problem="What is 2+2?")
-
-# Traces include:
-# - span.name: "jit"
-# - agent.name: "math_agent"
-# - generation.num_candidates: 3
-# - generation.best_cost: 0.45
 ```
 
-## Custom Spans
+**Trace attributes**:
+- `agent.name` - Agent identifier
+- `generation.num_candidates` - Parallel candidates generated
+- `generation.best_cost` - Selected candidate's cost
+- `execution.duration` - Total execution time
 
-Add custom tracing:
+## Custom Tracing
+
+Add custom spans for your operations:
 
 ```python
 from opentelemetry import trace
 
 tracer = trace.get_tracer(__name__)
 
-with tracer.start_as_current_span("my_operation") as span:
+with tracer.start_as_current_span("custom_operation") as span:
     span.set_attribute("input.size", len(data))
-    
     result = await process(data)
-    
     span.set_attribute("output.size", len(result))
 ```
 
 ## Metrics
 
-Track key metrics:
+Track performance metrics:
 
 ```python
 from opentelemetry.metrics import get_meter
 
 meter = get_meter(__name__)
-counter = meter.create_counter("agent.calls")
-histogram = meter.create_histogram("agent.latency")
 
-# Usage
-counter.add(1)
-histogram.record(execution_time)
+# Counters
+agent_calls = meter.create_counter("agent.calls")
+agent_calls.add(1, {"agent": "math_agent"})
+
+# Histograms
+latency = meter.create_histogram("agent.latency")
+latency.record(execution_time, {"agent": "math_agent"})
 ```
 
-## Debugging
+## Integrations
 
-Enable debug logging:
-
-```python
-import logging
-
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger("a1")
-logger.setLevel(logging.DEBUG)
-```
-
-## Integration with Tools
-
-- **Jaeger**: Distributed tracing visualization
-- **Prometheus**: Metrics collection
-- **DataDog**: Application performance monitoring
-- **New Relic**: Full-stack observability
-
-## Next Steps
-
-- Learn about [Custom Strategies](strategies.md)
-- Explore [Context Engineering](context.md)
+Works with standard observability platforms:
+- **Jaeger** - Distributed tracing
+- **Prometheus** - Metrics collection
+- **DataDog** - APM
+- **New Relic** - Full-stack observability
+- **Honeycomb** - Observability platform
