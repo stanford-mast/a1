@@ -1,6 +1,6 @@
 [project]
 name = "a1-compiler"
-version = "0.1.1"
+version = "0.1.2"
 description = "A modern agent compiler for building and executing LLM-powered agents"
 readme = "README.md"
 authors = [

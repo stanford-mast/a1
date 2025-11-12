@@ -1,0 +1,72 @@
+---
+title: RAG
+description: Retrieval tools for databases and filesystems
+---
+
+## RAG
+
+RAG provides readonly access to databases and filesystems for production safety.
+
+```python
+from a1 import RAG, Agent, LLM
+
+# Readonly database access
+rag = RAG(database="sqlite:///data.db")
+
+# Readonly filesystem access
+rag = RAG(filesystem="/path/to/files")
+
+agent = Agent(
+    name="safe_agent",
+    tools=[rag.get_toolset(), LLM("gpt-4.1")]
+)
+```
+
+**Database tools**: `sql` (SELECT queries only)
+
+**Filesystem tools**: `ls` (list files), `grep` (search), `cat` (read)
+
+## Database
+
+Full database access with read and write operations.
+
+```python
+from a1 import Database, Agent, LLM
+
+db = Database("postgresql://user:pass@host/db")
+
+agent = Agent(
+    name="db_agent",
+    tools=[db.get_toolset(), LLM("gpt-4.1")]
+)
+```
+
+**Available tools**: `sql` (any query), `insert`, `update`, `delete`
+
+**Supported databases**: PostgreSQL, MySQL, SQLite, DuckDB, SQL Server, Oracle (any SQLAlchemy connection string)
+
+## FileSystem
+
+Full filesystem access with read and write operations.
+
+```python
+from a1 import FileSystem, Agent, LLM
+
+# Local filesystem
+fs = FileSystem("/data")
+
+# S3 bucket
+fs = FileSystem("s3://bucket/path")
+
+# Google Cloud Storage
+fs = FileSystem("gs://bucket/path")
+
+agent = Agent(
+    name="fs_agent",
+    tools=[fs.get_toolset(), LLM("gpt-4.1")]
+)
+```
+
+**Available tools**: `ls` (list), `grep` (search), `cat` (read), `write_file`, `delete_file`
+
+**Supported paths**: Local filesystems, S3, Google Cloud Storage, Azure Blob Storage
