@@ -1,75 +1,83 @@
 ---
-title: A1 Agent Compiler
-description: Build reliable AI agents with AOT/JIT compilation
+title: A1
+description: The agent-to-code compiler
 ---
 
-# Welcome to A1
+A1 is a new kind of agent framework. It takes an `Agent` (a set of tools and a description) and compiles either AOT (ahead-of-time) into a `Tool` or JIT (just-in-time) for immediate execution optimized for each unique agent input.
 
-A1 is an agent compiler that transforms natural language agent descriptions into executable, type-safe Python code. Build reliable AI agents with ahead-of-time (AOT) or just-in-time (JIT) compilation.
+## Why use an agent compiler?
+
+1. **Safety** - Generates code for each unique agent input, shrinking the prompt injection attack surface
+2. **Speed** - Makes codegen practical with aggressive parallelism and static checking
+3. **Determinism** - Optimizes via an engineered cost function (e.g., replacing LLM calls with RegEx)
+4. **Flexibility** - Tools from OpenAPI, MCP servers, DB connections, fsspec paths, Python functions, or doc URLs
 
 ## Key Features
 
 <CardGroup cols={2}>
-  <Card title="AOT Compilation" icon="bolt" href="/guide/compilation#aot-compilation">
-    Compile agents ahead of time for predictable, fast execution
+  <Card title="Agents" icon="robot" href="/guide/agents">
+    Define agents with schemas and tools
   </Card>
-  <Card title="JIT Execution" icon="zap" href="/guide/compilation#jit-execution">
-    Generate code on-the-fly for rapid prototyping
+  <Card title="Tools" icon="wrench" href="/guide/tools">
+    Create tools from functions, APIs, or databases
   </Card>
-  <Card title="Type Safety" icon="shield-check" href="/guide/agents">
-    Pydantic schemas for inputs, outputs, and tool definitions
+  <Card title="Skills" icon="book-open" href="/guide/skills">
+    Add knowledge via code snippets or documentation
   </Card>
-  <Card title="Retry & Validation" icon="arrows-rotate" href="/advanced/retry">
-    Built-in retry strategies with exponential backoff
+  <Card title="Compilation" icon="bolt" href="/guide/compilation">
+    AOT compilation or JIT execution
   </Card>
 </CardGroup>
 
-## Quick Start
-
-Install A1 and build your first agent in minutes:
+## Quick Example
 
 ```bash
-pip install a1
+pip install a1-compiler
 ```
 
 ```python
-from a1 import Agent, Tool, Runtime, LLM
+from a1 import Agent, tool, LLM
+from pydantic import BaseModel
 
-# Define a calculator tool
 @tool
-def calculator(a: int, b: int, operation: str) -> int:
-    """Perform basic arithmetic operations."""
-    if operation == "add":
-        return a + b
-    elif operation == "multiply":
-        return a * b
+async def add(a: int, b: int) -> int:
+    return a + b
 
-# Create an agent
+class MathInput(BaseModel):
+    problem: str
+
+class MathOutput(BaseModel):
+    answer: int
+
 agent = Agent(
     name="math_agent",
-    description="An agent that solves math problems",
-    tools=[calculator, LLM("gpt-4o-mini")]
+    description="Solves simple math problems",
+    input_schema=MathInput,
+    output_schema=MathOutput,
+    tools=[add, LLM("gpt-4o")],
 )
 
-# Execute with JIT
-async with Runtime() as runtime:
-    result = await runtime.jit(agent, query="What is 5 times 6?")
-    print(result)
+# Compile ahead-of-time
+compiled = await agent.aot()
+result = await compiled.execute(problem="What is 2 + 2?")
+
+# Or execute just-in-time
+result = await agent.jit(problem="What is 5 + 3?")
 ```
 
-## What's Next?
+## Get Started
 
 <CardGroup cols={2}>
   <Card title="Installation" icon="download" href="/getting-started/installation">
     Set up A1 in your environment
   </Card>
-  <Card title="Core Concepts" icon="book" href="/getting-started/concepts">
-    Learn about agents, tools, and compilation
+  <Card title="Quick Start" icon="rocket" href="/getting-started/quick-start">
+    Build your first agent
   </Card>
-  <Card title="Build Your First Agent" icon="rocket" href="/getting-started/quick-start">
-    Follow our step-by-step tutorial
+  <Card title="Compilation Guide" icon="book" href="/guide/compilation">
+    Learn about AOT vs JIT
   </Card>
-  <Card title="API Reference" icon="code" href="/api/runtime">
-    Explore the full API documentation
+  <Card title="API Reference" icon="code" href="/api/reference">
+    Explore the full API
   </Card>
 </CardGroup>

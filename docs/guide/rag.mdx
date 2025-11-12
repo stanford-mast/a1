@@ -1,33 +1,36 @@
 ---
-title: RAG & Data Sources
+title: RAG
+description: Retrieval tools for databases and filesystems
 ---
 
-# RAG (Retrieval-Augmented Generation)
+RAG tools provide agents access to files, databases, and external knowledge. Tools are instantiated from DB connection strings or fsspec paths (local filesystem, S3, GCS, etc).
 
-**RAG** tools provide agents access to external knowledge sources - files, databases, etc.
-
-A1 provides a **composition-based architecture** for RAG:
-
-- **FileSystem**: Full read/write access to files
-- **Database**: Full read/write access to databases  
-- **RAG**: Readonly wrapper that filters write operations
-
-This allows code generation to have write access during development, while production agents get readonly access for safety.
-
-## FileSystem
-
-Access local or cloud files via `fsspec`:
+## Database RAG
 
 ```python
-from a1 import FileSystem
+from a1 import rag
 
-# Create filesystem accessor
-fs = FileSystem("/data")
+# Create database tools
+tools = rag.database("duckdb://path/to/db.duckdb")
 
-# Full toolset (includes write access)
-toolset = fs.get_toolset()  # Returns: ls, grep, cat, write_file, delete_file
+# Use in agent
+agent = Agent(
+    name="db_agent",
+    description="Queries database",
+    tools=[*tools, LLM("gpt-4o")]
+)
+```
 
-# Use in agent (for testing/development)
+## Filesystem RAG
+
+```python
+from a1 import rag
+
+# Local filesystem
+tools = rag.filesystem("/path/to/files")
+
+# S3 bucket
+tools = rag.filesystem("s3://my-bucket/path")
 agent = Agent(
     name="research_agent",
     tools=[fs.get_toolset(), LLM(model="gpt-4o")],

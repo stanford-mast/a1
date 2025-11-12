@@ -1,38 +1,36 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "name": "A1",
-  "description": "Agent Compiler - Build Reliable AI Agents",
+  "description": "The agent-to-code compiler",
   "logo": "assets/a1_icon.svg",
   "favicon": "assets/a1_icon.svg",
   "colors": {
-    "primary": "#ffe067"
+    "primary": "#FFE067"
   },
   "theme": "mint",
   "navigation": {
     "pages": [
-      "index.mdx",
       {
-        "group": "Getting Started",
+        "group": "Get Started",
         "pages": [
           "getting-started/installation",
-          "getting-started/quick-start",
-          "getting-started/concepts"
+          "getting-started/quick-start"
         ]
       },
       {
-        "group": "Core Guides",
+        "group": "Basics",
         "pages": [
           "guide/agents",
           "guide/tools",
-          "guide/llm",
-          "guide/compilation",
-          "guide/context",
           "guide/skills",
-          "guide/rag"
+          "guide/compilation",
+          "guide/llm",
+          "guide/rag",
+          "guide/context"
         ]
       },
       {
-        "group": "Advanced Topics",
+        "group": "Advanced",
         "pages": [
           "advanced/strategies",
           "advanced/retry",
@@ -42,11 +40,9 @@
         ]
       },
       {
-        "group": "API Reference",
+        "group": "API",
         "pages": [
-          "api/runtime",
-          "api/models",
-          "api/builtin-tools"
+          "api/reference"
         ]
       }
     ]

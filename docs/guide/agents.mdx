@@ -1,32 +1,25 @@
 ---
 title: Agents
+description: Define agents with schemas and tools
 ---
 
-# Agents
-
-An **Agent** is the core abstraction in A1. It combines tools, schemas, and behavior into a reusable unit.
+An **Agent** combines tools, schemas, and behavior into a reusable unit that can be compiled or executed.
 
 ## Creating an Agent
 
 ```python
 from a1 import Agent, tool, LLM
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-# Define tools
-@tool(name="add", description="Add two numbers")
+@tool
 async def add(a: int, b: int) -> int:
     return a + b
 
-@tool(name="multiply", description="Multiply two numbers")
-async def multiply(a: int, b: int) -> int:
-    return a * b
-
-# Define schemas
 class MathInput(BaseModel):
-    expression: str = Field(..., description="Math expression to solve")
+    problem: str
 
 class MathOutput(BaseModel):
-    result: float = Field(..., description="The computed result")
+    answer: int
 
 # Create agent
 agent = Agent(

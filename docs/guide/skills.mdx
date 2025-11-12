@@ -1,31 +1,35 @@
 ---
 title: Skills
+description: Add knowledge via code snippets or documentation
 ---
 
-# Skills
-
-**Skills** are reusable, composable units of knowledge that agents can use.
-
-## What are Skills?
-
-Skills encapsulate domain knowledge, patterns, or procedures that agents can apply. They're similar to tools but focus on behavior and patterns rather than specific functions.
+Skills provide agents with reusable knowledge patterns, code snippets, or procedures. They can be defined manually or crawled from documentation websites.
 
 ## Creating Skills
 
 ```python
 from a1 import Skill
 
-research_skill = Skill(
-    name="research",
-    description="Efficient web research methodology",
+skill = Skill(
+    name="web_research",
+    description="Research methodology",
     content="""
-    1. Search broadly first
-    2. Narrow down specific sources
-    3. Extract key information
-    4. Cross-reference findings
-    5. Summarize conclusions
+    1. Search broadly
+    2. Extract key information
+    3. Cross-reference sources
     """,
-    modules=["requests", "beautifulsoup4"]
+    modules=["requests"]
+)
+```
+
+## Using Skills
+
+```python
+agent = Agent(
+    name="researcher",
+    description="Researches topics",
+    skills=[skill],
+    tools=[search_tool, LLM("gpt-4o")]
 )
 ```
 

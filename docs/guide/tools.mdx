@@ -1,33 +1,32 @@
 ---
 title: Tools
+description: Create tools from functions, APIs, MCP servers, or databases
 ---
 
-# Tools
+Tools are async functions that agents can call. Create them from Python functions, OpenAPI specs, MCP servers, DB connections, or even documentation URLs.
 
-**Tools** are the actions agents can perform. They're regular async functions decorated with `@tool`.
-
-## Creating Tools
+## From Python Functions
 
 ```python
 from a1 import tool
 
-@tool(name="search", description="Search the web")
-async def search(query: str, limit: int = 10) -> List[str]:
-    """Search for information on the web."""
-    # Implementation
+@tool
+async def search(query: str) -> list[str]:
+    """Search the web."""
     return results
 
-@tool(name="calculate", description="Evaluate a math expression")
+@tool
 async def calculate(expression: str) -> float:
-    """Calculate the result of a math expression."""
+    """Evaluate math expression."""
     return eval(expression)
 ```
 
-## Tool Features
+## From OpenAPI
 
-### Type Safety
+```python
+from a1 import openapi
 
-Tools use Python type hints for validation:
+tools = openapi.from_spec("https://api.example.com/openapi.json")
 
 ```python
 @tool(name="process", description="Process data")

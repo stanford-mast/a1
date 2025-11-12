@@ -1,32 +1,30 @@
 ---
 title: Compilation
+description: AOT compilation and JIT execution modes
 ---
 
-# Compilation
+A1 compiles agents to Python code using two modes: AOT (compile once, run many times) or JIT (compile and run immediately for each unique input).
 
-Compilation converts an Agent into optimized executable code. A1 supports both Ahead-of-Time (AOT) and Just-in-Time (JIT) compilation strategies.
+## AOT (Ahead-of-Time)
 
-## Two Modes
-
-### AOT (Ahead-of-Time) - For Deterministic Behavior
-
-Compile once, run many times. Generates a complete Python function and caches it for repeated execution.
-
-**Best for:**
-- Production workflows requiring deterministic results
-- Repeated patterns with the same agent
-- Batch processing (same agent, many inputs)
-- Performance-critical code (no recompilation overhead)
+Compile once, execute repeatedly with the same code. Best for production workflows.
 
 ```python
 # Compile once
 compiled = await agent.aot()
 
-# Use many times - no recompilation
+# Use many times
 for i in range(1000):
     result = await compiled.execute(problem=f"Input {i}")
-    # All executions use the same compiled code
 ```
+
+## JIT (Just-in-Time)
+
+Generate and execute code immediately, optimized for each unique input.
+
+```python
+# Compile and execute
+result = await agent.jit(problem="What is 2 + 2?")
 
 **Key characteristics:**
 - Generated code is consistent across inputs

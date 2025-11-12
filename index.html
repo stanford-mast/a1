@@ -3,245 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="A1 - Agent Compiler for Building Reliable AI Agents">
-    <title>A1 - Agent Compiler</title>
+    <title>A1</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        :root {
+            --primary-color: #FFE067;
+            --bg-color: #0D1117;
+            --text-color: #F0F6FC;
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
             line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
         }
 
         .container {
-            max-width: 800px;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            padding: 60px 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
             text-align: center;
         }
 
-        .logo {
-            width: 120px;
-            height: 120px;
-            margin: 0 auto 30px;
-            background: #ffe067;
-            border-radius: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 64px;
-            font-weight: 900;
-            color: #333;
-            box-shadow: 0 10px 30px rgba(255, 224, 103, 0.3);
+        .hero {
+            margin: 4rem 0;
         }
 
-        h1 {
-            font-size: 48px;
-            font-weight: 900;
-            margin-bottom: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+        .hero img {
+            max-width: 400px;
+            width: 80%;
+            filter: drop-shadow(0 4px 12px rgba(255, 224, 103, 0.3));
         }
 
         .tagline {
-            font-size: 24px;
-            color: #666;
-            margin-bottom: 40px;
-            font-weight: 300;
+            font-size: 1rem;
+            margin: 2rem 0;
+            color: var(--text-color);
         }
 
-        .description {
-            font-size: 18px;
-            color: #555;
-            margin-bottom: 40px;
-            line-height: 1.8;
-        }
-
-        .buttons {
+        .links {
             display: flex;
-            gap: 20px;
             justify-content: center;
+            gap: 2rem;
+            margin-top: 3rem;
             flex-wrap: wrap;
-            margin-bottom: 40px;
         }
 
-        .btn {
-            padding: 15px 40px;
-            font-size: 18px;
-            font-weight: 600;
+        .link {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
             text-decoration: none;
-            border-radius: 50px;
-            transition: all 0.3s ease;
-            display: inline-block;
+            color: var(--bg-color);
+            background-color: var(--primary-color);
+            font-weight: 600;
+            transition: transform 0.2s ease;
         }
 
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        .link:hover {
+            transform: translateY(-2px);
         }
 
-        .btn-primary:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.5);
+        .link svg {
+            margin-right: 0.5rem;
+            width: 20px;
+            height: 20px;
         }
-
-        .btn-secondary {
-            background: white;
-            color: #667eea;
-            border: 2px solid #667eea;
-        }
-
-        .btn-secondary:hover {
-            background: #f7f7f7;
-            transform: translateY(-3px);
-        }
-
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-top: 40px;
-            text-align: left;
-        }
-
-        .feature {
-            padding: 20px;
-            background: #f9f9f9;
-            border-radius: 15px;
-            border-left: 4px solid #ffe067;
-        }
-
-        .feature h3 {
-            font-size: 18px;
-            margin-bottom: 10px;
-            color: #333;
-        }
-
-        .feature p {
-            font-size: 14px;
-            color: #666;
-        }
-
-        .code-example {
-            background: #282c34;
-            color: #abb2bf;
-            padding: 30px;
-            border-radius: 15px;
-            text-align: left;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            margin: 30px 0;
-            overflow-x: auto;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-
-        .code-example pre {
-            margin: 0;
-        }
-
-        .code-keyword { color: #c678dd; }
-        .code-function { color: #61afef; }
-        .code-string { color: #98c379; }
-        .code-comment { color: #5c6370; }
 
         @media (max-width: 600px) {
-            .container {
-                padding: 40px 20px;
-            }
-            
-            h1 {
-                font-size: 36px;
-            }
-            
-            .tagline {
-                font-size: 20px;
-            }
-            
-            .buttons {
+            .links {
                 flex-direction: column;
+                align-items: center;
             }
             
-            .btn {
-                width: 100%;
+            .link {
+                width: 80%;
+                justify-content: center;
             }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="logo">A1</div>
-        <h1>A1 Agent Compiler</h1>
-        <p class="tagline">Build Reliable AI Agents</p>
+        <div class="hero">
+            <img src="docs/assets/a1_icon.svg" alt="A1 Logo">
+        </div>
         
-        <p class="description">
-            A1 is an agent compiler that transforms natural language agent descriptions 
-            into executable, type-safe Python code. Build reliable AI agents with 
-            ahead-of-time (AOT) or just-in-time (JIT) compilation.
-        </p>
+        <h1 class="tagline">The A1 agent-to-code compiler</h1>
 
-        <div class="buttons">
-            <a href="https://github.com/stanford-mast/a1" class="btn btn-primary">View on GitHub</a>
-            <a href="/a1/docs" class="btn btn-secondary">Documentation</a>
-        </div>
-
-        <div class="code-example">
-            <pre><span class="code-keyword">from</span> a1 <span class="code-keyword">import</span> Agent, Tool, Runtime, LLM
-
-<span class="code-comment"># Define a calculator tool</span>
-<span class="code-keyword">@tool</span>
-<span class="code-keyword">def</span> <span class="code-function">calculator</span>(a: int, b: int, operation: str) -> int:
-    <span class="code-string">"""Perform basic arithmetic operations."""</span>
-    <span class="code-keyword">if</span> operation == <span class="code-string">"add"</span>:
-        <span class="code-keyword">return</span> a + b
-    <span class="code-keyword">elif</span> operation == <span class="code-string">"multiply"</span>:
-        <span class="code-keyword">return</span> a * b
-
-<span class="code-comment"># Create an agent</span>
-agent = <span class="code-function">Agent</span>(
-    name=<span class="code-string">"math_agent"</span>,
-    description=<span class="code-string">"An agent that solves math problems"</span>,
-    tools=[calculator, <span class="code-function">LLM</span>(<span class="code-string">"gpt-4o-mini"</span>)]
-)
-
-<span class="code-comment"># Execute with JIT</span>
-<span class="code-keyword">async with</span> <span class="code-function">Runtime</span>() <span class="code-keyword">as</span> runtime:
-    result = <span class="code-keyword">await</span> runtime.<span class="code-function">jit</span>(agent, query=<span class="code-string">"What is 5 times 6?"</span>)
-    <span class="code-function">print</span>(result)</pre>
-        </div>
-
-        <div class="features">
-            <div class="feature">
-                <h3>⚡ AOT Compilation</h3>
-                <p>Compile agents ahead of time for predictable, fast execution</p>
-            </div>
-            <div class="feature">
-                <h3>🔄 JIT Execution</h3>
-                <p>Generate code on-the-fly for rapid prototyping</p>
-            </div>
-            <div class="feature">
-                <h3>🛡️ Type Safety</h3>
-                <p>Pydantic schemas for inputs, outputs, and tool definitions</p>
-            </div>
-            <div class="feature">
-                <h3>🔁 Retry & Validation</h3>
-                <p>Built-in retry strategies with exponential backoff</p>
-            </div>
+        <div class="links">
+            <a href="https://docs.a1project.org" class="link">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                Docs
+            </a>
+            <a href="https://discord.gg/NqrkJwYYh4" class="link">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20.317 4.492c-1.53-.69-3.17-1.2-4.885-1.49a.075.075 0 0 0-.079.036c-.21.369-.444.85-.608 1.23a18.566 18.566 0 0 0-5.487 0 12.36 12.36 0 0 0-.617-1.23A.077.077 0 0 0 8.562 3c-1.714.29-3.354.8-4.885 1.491a.07.07 0 0 0-.032.027C.533 9.093-.32 13.555.099 17.961a.08.08 0 0 0 .031.055 20.03 20.03 0 0 0 5.993 2.98.078.078 0 0 0 .084-.026 13.83 13.83 0 0 0 1.226-1.963.074.074 0 0 0-.041-.104 13.175 13.175 0 0 1-1.872-.878.075.075 0 0 1-.008-.125c.126-.093.252-.19.372-.287a.075.075 0 0 1 .078-.01c3.927 1.764 8.18 1.764 12.061 0a.075.075 0 0 1 .079.009c.12.098.245.195.372.288a.075.075 0 0 1-.006.125c-.598.344-1.22.635-1.873.877a.075.075 0 0 0-.041.105c.36.687.772 1.341 1.225 1.962a.077.077 0 0 0 .084.028 19.963 19.963 0 0 0 6.002-2.981.076.076 0 0 0 .032-.054c.5-5.094-.838-9.52-3.549-13.442a.06.06 0 0 0-.031-.028zM8.02 15.278c-1.182 0-2.157-1.069-2.157-2.38 0-1.312.956-2.38 2.157-2.38 1.21 0 2.176 1.077 2.157 2.38 0 1.312-.956 2.38-2.157 2.38zm7.975 0c-1.183 0-2.157-1.069-2.157-2.38 0-1.312.955-2.38 2.157-2.38 1.21 0 2.176 1.077 2.157 2.38 0 1.312-.946 2.38-2.157 2.38z"/>
+                </svg>
+                Discord
+            </a>
+            <a href="https://github.com/stanford-mast/a1" class="link">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+                </svg>
+                GitHub
+            </a>
         </div>
     </div>
 </body>

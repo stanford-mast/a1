@@ -1,0 +1,266 @@
+---
+title: API Reference
+description: Complete API reference for A1
+---
+
+## Agent
+
+An agent is defined by its tools, input/output schemas, and description.
+
+```python
+from a1 import Agent
+from pydantic import BaseModel
+
+class Input(BaseModel):
+    query: str
+
+class Output(BaseModel):
+    result: str
+
+agent = Agent(
+    name="my_agent",
+    description="Does something useful",
+    input_schema=Input,
+    output_schema=Output,
+    tools=[tool1, tool2],
+    skills=[skill1, skill2]
+)
+
+# Compile ahead-of-time
+compiled = await agent.aot(cache=True, strategy=None)
+
+# Execute just-in-time
+result = await agent.jit(query="example")
+```
+
+**Methods:**
+- `async aot(cache: bool = True, strategy: Optional[Strategy] = None) -> Tool` - Compile agent to code
+- `async jit(strategy: Optional[Strategy] = None, **kwargs) -> Any` - Execute immediately
+
+## Tool
+
+Tools are callable functions with typed inputs and outputs.
+
+```python
+from a1 import tool
+
+@tool
+async def my_tool(x: int, y: str) -> dict:
+    """Does something useful."""
+    return {"result": f"{y}: {x}"}
+
+# Or create explicitly
+from a1 import Tool
+from pydantic import BaseModel
+
+class ToolInput(BaseModel):
+    x: int
+    y: str
+
+class ToolOutput(BaseModel):
+    result: str
+
+tool = Tool(
+    name="my_tool",
+    description="Does something useful",
+    input_schema=ToolInput,
+    output_schema=ToolOutput,
+    execute=lambda x, y: {"result": f"{y}: {x}"},
+    is_terminal=False
+)
+```
+
+**Properties:**
+- `name: str` - Tool identifier
+- `description: str` - What the tool does
+- `input_schema: type[BaseModel]` - Pydantic schema for inputs
+- `output_schema: type[BaseModel]` - Pydantic schema for outputs
+- `is_terminal: bool` - Whether this ends agent execution
+
+## LLM
+
+LLMs are tools that call language models.
+
+```python
+from a1 import LLM
+
+llm = LLM(
+    model="gpt-4o",
+    retry_strategy=None,
+    output_schema=None
+)
+
+# Use in agent
+agent = Agent(
+    name="agent",
+    description="Uses LLM",
+    tools=[my_tool, LLM("gpt-4o-mini")]
+)
+```
+
+**Parameters:**
+- `model: str` - Model identifier (e.g., "gpt-4o", "claude-3-5-sonnet")
+- `retry_strategy: Optional[RetryStrategy]` - Retry configuration
+- `output_schema: Optional[type[BaseModel]]` - Structured output schema
+
+## ToolSet
+
+Group related tools together.
+
+```python
+from a1 import ToolSet
+
+toolset = ToolSet(
+    name="math_tools",
+    description="Mathematical operations",
+    tools=[add, subtract, multiply]
+)
+
+# Access tools
+all_tools = toolset.get_all_tools()
+specific_tool = toolset.get_tool("add")
+```
+
+## Skill
+
+Skills provide context or code snippets to agents.
+
+```python
+from a1 import Skill
+
+skill = Skill(
+    name="python_basics",
+    description="Python programming fundamentals",
+    content="def example(): ...",
+    modules=["os", "sys"]
+)
+```
+
+## SkillSet
+
+Group related skills.
+
+```python
+from a1 import SkillSet
+
+skillset = SkillSet(
+    name="web_dev",
+    description="Web development skills",
+    skills=[html_skill, css_skill, js_skill]
+)
+```
+
+## Strategy
+
+Configure code generation and verification.
+
+```python
+from a1 import Strategy
+
+strategy = Strategy(
+    max_iterations=3,        # Max retry attempts
+    num_candidates=1,        # Parallel code candidates
+    generate=None,           # Custom code generator
+    verify=None,             # Custom verifiers
+    cost=None,               # Custom cost function
+    compact=None             # Custom compaction
+)
+```
+
+## RetryStrategy
+
+Configure retry behavior for LLM calls.
+
+```python
+from a1 import RetryStrategy
+
+retry = RetryStrategy(
+    max_iterations=3,    # Max retry attempts with exponential backoff
+    num_candidates=1     # Number of parallel attempts
+)
+```
+
+## Context
+
+Manage conversation history.
+
+```python
+from a1 import get_context
+
+ctx = get_context("main")
+ctx.user("What is 2+2?")
+ctx.assistant("The answer is 4")
+ctx.tool("calculator", input={"a": 2, "b": 2}, output={"result": 4})
+
+# Access messages
+messages = ctx.messages
+```
+
+**Methods:**
+- `user(content: str)` - Add user message
+- `assistant(content: str, tool_calls=None)` - Add assistant message
+- `tool(name: str, input: Any, output: Any)` - Add tool call result
+
+## RAG
+
+Retrieval tools for databases and filesystems.
+
+```python
+from a1 import rag
+
+# Database RAG
+db_tools = rag.database("duckdb://path/to/db.duckdb")
+
+# Filesystem RAG
+fs_tools = rag.filesystem("/path/to/files")
+
+# Combined
+agent = Agent(
+    name="rag_agent",
+    description="Uses RAG",
+    tools=[*db_tools, *fs_tools, LLM("gpt-4o")]
+)
+```
+
+## Runtime (Advanced)
+
+Direct access to runtime for advanced use cases.
+
+```python
+from a1 import Runtime, set_runtime
+
+runtime = Runtime(cache_dir="./cache")
+set_runtime(runtime)
+
+# Execute tool
+result = await runtime.execute(tool, **kwargs)
+
+# AOT compilation
+compiled = await runtime.aot(agent, cache=True)
+
+# JIT execution
+result = await runtime.jit(agent, **kwargs)
+
+# Context management
+ctx = runtime.get_full_context(labels=["main", "attempt"])
+```
+
+**Methods:**
+- `async execute(tool: Tool, **kwargs) -> Any` - Execute a tool
+- `async aot(agent: Agent, cache: bool = True) -> Tool` - Compile agent
+- `async jit(agent: Agent, **kwargs) -> Any` - Execute agent JIT
+- `get_full_context(labels: List[str]) -> Context` - Get merged context
+
+## Verifiers
+
+Built-in code verifiers.
+
+```python
+from a1 import IsLoop, IsFunction
+
+# Require while loop pattern
+runtime.verify = [IsLoop()]
+
+# Require async function
+runtime.verify = [IsFunction()]
+```
