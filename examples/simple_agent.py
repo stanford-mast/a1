@@ -8,25 +8,29 @@ and LLM reasoning.
 import asyncio
 import logging
 from pathlib import Path
+
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
-from a1 import Agent, Tool, LLM, Runtime
+
+from a1 import LLM, Agent, Runtime, Tool
 
 # Load environment variables from .env file
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 # Enable logging to see generated code
-logging.basicConfig(level=logging.INFO, format='%(name)s: %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
 
 
 # Define input and output schemas
 class MathInput(BaseModel):
     """Input for math agent."""
+
     problem: str = Field(..., description="Math problem to solve")
 
 
 class MathOutput(BaseModel):
     """Output from math agent."""
+
     answer: str = Field(..., description="Solution to the problem")
 
 
@@ -66,26 +70,26 @@ async def main():
         input_schema=CalculatorInput,
         output_schema=CalculatorOutput,
         execute=calculator_execute,
-        is_terminal=False
+        is_terminal=False,
     )
-    
+
     # Create LLM tool
     llm = LLM("groq:openai/gpt-oss-20b")
-    
+
     # Create agent with tools
     agent = Agent(
         name="math_agent",
         description="Solves math problems using calculator and LLM reasoning",
         input_schema=MathInput,
         output_schema=MathOutput,
-        tools=[calculator, llm]
+        tools=[calculator, llm],
     )
-    
+
     # Create runtime
     runtime = Runtime()
-    
+
     print("=== Math Agent Example ===\n")
-    
+
     # Example 1: AOT compilation (Ahead-Of-Time)
     print("1. AOT Compilation:")
     print("   Generates and compiles agent code once, then reuses")
@@ -93,28 +97,28 @@ async def main():
     try:
         compiled = await runtime.aot(agent, cache=False)
         result = await compiled(problem="What is 42 divided by 7?")
-        print(f"   Input: What is 42 divided by 7?")
+        print("   Input: What is 42 divided by 7?")
         print(f"   Output: {result.answer}\n")
     except Exception as e:
         print(f"   Skipped: {e}\n")
-    
+
     # Example 2: JIT execution (Just-In-Time)
     print("2. JIT Execution:")
     print("   Generates and executes agent code on-the-fly")
     print("   (Requires GROQ_API_KEY set)\n")
     try:
         result = await runtime.jit(agent, problem="What is 5 times 6?")
-        print(f"   Input: What is 5 times 6?")
+        print("   Input: What is 5 times 6?")
         print(f"   Output: {result.answer}\n")
     except Exception as e:
         print(f"   Skipped: {e}\n")
-    
+
     # Example 3: Direct tool execution
     print("3. Direct Tool Execution:")
     print("   Execute tools without agent compilation")
     result = await runtime.execute(calculator, a=10, b=3, operation="add")
     print(f"   Calculator(10, 3, 'add') = {result.result}\n")
-    
+
     print("=== Example Complete ===")
 
 

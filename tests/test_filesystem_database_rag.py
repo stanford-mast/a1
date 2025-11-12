@@ -7,13 +7,12 @@ Tests:
 3. RAG wrapper for readonly access to FileSystem and Database
 """
 
-import pytest
 import tempfile
-import asyncio
 from pathlib import Path
-from typing import Dict, Any
 
-from a1 import FileSystem, Database, RAG, Tool
+import pytest
+
+from a1 import RAG, Database, FileSystem
 
 
 class TestFileSystemReadWrite:
@@ -30,15 +29,11 @@ class TestFileSystemReadWrite:
             write_tool = [t for t in toolset.tools if t.name == "write_file"][0]
 
             # Write file
-            result = await write_tool.execute(
-                path="test.txt",
-                content="Hello, World!",
-                mode="w"
-            )
+            result = await write_tool.execute(path="test.txt", content="Hello, World!", mode="w")
 
             assert result["success"] is True
             assert result["bytes_written"] == len("Hello, World!")
-            
+
             # Verify file exists
             assert (Path(tmpdir) / "test.txt").exists()
             assert (Path(tmpdir) / "test.txt").read_text() == "Hello, World!"
@@ -54,16 +49,12 @@ class TestFileSystemReadWrite:
 
             # Write initial content
             await write_tool.execute(path="log.txt", content="Line 1\n", mode="w")
-            
+
             # Append content
-            result = await write_tool.execute(
-                path="log.txt",
-                content="Line 2\n",
-                mode="a"
-            )
+            result = await write_tool.execute(path="log.txt", content="Line 2\n", mode="a")
 
             assert result["success"] is True
-            
+
             # Verify appended content
             content = (Path(tmpdir) / "log.txt").read_text()
             assert "Line 1" in content
@@ -77,7 +68,7 @@ class TestFileSystemReadWrite:
             # Create a file first
             test_file = Path(tmpdir) / "delete_me.txt"
             test_file.write_text("Content")
-            
+
             fs = FileSystem(tmpdir)
             toolset = fs.get_toolset()
             delete_tool = [t for t in toolset.tools if t.name == "delete_file"][0]
@@ -95,10 +86,10 @@ class TestFileSystemReadWrite:
         with tempfile.TemporaryDirectory() as tmpdir:
             fs = FileSystem(tmpdir)
             toolset = fs.get_toolset()
-            
+
             tool_names = {t.name for t in toolset.tools}
             expected = {"ls", "grep", "cat", "write_file", "delete_file"}
-            
+
             assert tool_names == expected
             print(f"✓ FileSystem tools: {tool_names}")
 
@@ -113,16 +104,14 @@ class TestDatabaseReadWrite:
             db_path = Path(tmpdir) / "test.duckdb"
             # DuckDB connection string format
             connection = f"duckdb:///{db_path}"
-            
+
             db = Database(connection)
             toolset = db.get_toolset()
-            
+
             # Create table and insert data
             sql_tool = [t for t in toolset.tools if t.name == "sql"][0]
-            create_result = await sql_tool.execute(
-                query="CREATE TABLE users (id INTEGER, name VARCHAR)"
-            )
-            
+            create_result = await sql_tool.execute(query="CREATE TABLE users (id INTEGER, name VARCHAR)")
+
             # Verify table creation succeeded (no error)
             assert "error" not in create_result or create_result["row_count"] == 0
             print(f"✓ DuckDB table created: {connection}")
@@ -133,35 +122,31 @@ class TestDatabaseReadWrite:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "test.duckdb"
             connection = f"duckdb:///{db_path}"
-            
+
             db = Database(connection)
             toolset = db.get_toolset()
-            
+
             sql_tool = [t for t in toolset.tools if t.name == "sql"][0]
             insert_tool = [t for t in toolset.tools if t.name == "insert"][0]
-            
+
             # Create table
-            await sql_tool.execute(
-                query="CREATE TABLE products (id INTEGER, name VARCHAR, price FLOAT)"
-            )
-            
+            await sql_tool.execute(query="CREATE TABLE products (id INTEGER, name VARCHAR, price FLOAT)")
+
             # Insert rows
             result = await insert_tool.execute(
                 table="products",
                 data=[
                     {"id": 1, "name": "Widget", "price": 9.99},
                     {"id": 2, "name": "Gadget", "price": 19.99},
-                ]
+                ],
             )
-            
+
             assert result["success"] is True
             assert result["rows_affected"] == 2
             print(f"✓ Insert rows: {result['rows_affected']} rows")
-            
+
             # Verify rows were inserted
-            query_result = await sql_tool.execute(
-                query="SELECT * FROM products"
-            )
+            query_result = await sql_tool.execute(query="SELECT * FROM products")
             assert query_result["row_count"] == 2
             print(f"✓ Query result: {query_result['row_count']} rows")
 
@@ -171,37 +156,26 @@ class TestDatabaseReadWrite:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "test.duckdb"
             connection = f"duckdb:///{db_path}"
-            
+
             db = Database(connection)
             toolset = db.get_toolset()
-            
+
             sql_tool = [t for t in toolset.tools if t.name == "sql"][0]
             insert_tool = [t for t in toolset.tools if t.name == "insert"][0]
             update_tool = [t for t in toolset.tools if t.name == "update"][0]
-            
+
             # Setup
-            await sql_tool.execute(
-                query="CREATE TABLE inventory (id INTEGER, stock INTEGER)"
-            )
-            await insert_tool.execute(
-                table="inventory",
-                data=[{"id": 1, "stock": 100}]
-            )
-            
+            await sql_tool.execute(query="CREATE TABLE inventory (id INTEGER, stock INTEGER)")
+            await insert_tool.execute(table="inventory", data=[{"id": 1, "stock": 100}])
+
             # Update
-            result = await update_tool.execute(
-                table="inventory",
-                where="id = 1",
-                updates={"stock": 50}
-            )
-            
+            result = await update_tool.execute(table="inventory", where="id = 1", updates={"stock": 50})
+
             assert result["success"] is True
             print(f"✓ Update rows: {result}")
-            
+
             # Verify update
-            query_result = await sql_tool.execute(
-                query="SELECT stock FROM inventory WHERE id = 1"
-            )
+            query_result = await sql_tool.execute(query="SELECT stock FROM inventory WHERE id = 1")
             assert query_result["rows"][0]["stock"] == 50
 
     @pytest.mark.asyncio
@@ -210,39 +184,32 @@ class TestDatabaseReadWrite:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "test.duckdb"
             connection = f"duckdb:///{db_path}"
-            
+
             db = Database(connection)
             toolset = db.get_toolset()
-            
+
             sql_tool = [t for t in toolset.tools if t.name == "sql"][0]
             insert_tool = [t for t in toolset.tools if t.name == "insert"][0]
             delete_tool = [t for t in toolset.tools if t.name == "delete"][0]
-            
+
             # Setup
-            await sql_tool.execute(
-                query="CREATE TABLE temp_data (id INTEGER, value VARCHAR)"
-            )
+            await sql_tool.execute(query="CREATE TABLE temp_data (id INTEGER, value VARCHAR)")
             await insert_tool.execute(
                 table="temp_data",
                 data=[
                     {"id": 1, "value": "keep"},
                     {"id": 2, "value": "delete"},
-                ]
+                ],
             )
-            
+
             # Delete
-            result = await delete_tool.execute(
-                table="temp_data",
-                where="id = 2"
-            )
-            
+            result = await delete_tool.execute(table="temp_data", where="id = 2")
+
             assert result["success"] is True
             print(f"✓ Delete rows: {result}")
-            
+
             # Verify delete
-            query_result = await sql_tool.execute(
-                query="SELECT * FROM temp_data"
-            )
+            query_result = await sql_tool.execute(query="SELECT * FROM temp_data")
             assert query_result["row_count"] == 1
             assert query_result["rows"][0]["value"] == "keep"
 
@@ -252,13 +219,13 @@ class TestDatabaseReadWrite:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "test.duckdb"
             connection = f"duckdb:///{db_path}"
-            
+
             db = Database(connection)
             toolset = db.get_toolset()
-            
+
             tool_names = {t.name for t in toolset.tools}
             expected = {"sql", "insert", "update", "delete"}
-            
+
             assert tool_names == expected
             print(f"✓ Database tools: {tool_names}")
 
@@ -271,14 +238,14 @@ class TestFileSystemRAGReadonly:
         """Test that RAG with FileSystem only has readonly tools."""
         with tempfile.TemporaryDirectory() as tmpdir:
             Path(tmpdir, "test.txt").write_text("test content")
-            
+
             fs = FileSystem(tmpdir)
             rag = RAG(filesystem=fs)
             toolset = rag.get_toolset()
-            
+
             tool_names = {t.name for t in toolset.tools}
             expected = {"ls", "grep", "cat"}
-            
+
             assert tool_names == expected
             assert "write_file" not in tool_names
             assert "delete_file" not in tool_names
@@ -290,14 +257,14 @@ class TestFileSystemRAGReadonly:
         with tempfile.TemporaryDirectory() as tmpdir:
             content = "Hello from RAG"
             Path(tmpdir, "readme.txt").write_text(content)
-            
+
             fs = FileSystem(tmpdir)
             rag = RAG(filesystem=fs)
             toolset = rag.get_toolset()
             cat_tool = [t for t in toolset.tools if t.name == "cat"][0]
-            
+
             result = await cat_tool.execute(path="readme.txt")
-            
+
             assert result["content"] == content
             print(f"✓ RAG FileSystem cat: {result['content']}")
 
@@ -311,37 +278,28 @@ class TestRAGDatabaseReadonly:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "test.duckdb"
             connection = f"duckdb:///{db_path}"
-            
+
             # Setup database with data
             db = Database(connection)
             toolset = db.get_toolset()
             sql_tool = [t for t in toolset.tools if t.name == "sql"][0]
             insert_tool = [t for t in toolset.tools if t.name == "insert"][0]
-            
-            await sql_tool.execute(
-                query="CREATE TABLE test_data (id INTEGER, value VARCHAR)"
-            )
-            await insert_tool.execute(
-                table="test_data",
-                data=[{"id": 1, "value": "test"}]
-            )
-            
+
+            await sql_tool.execute(query="CREATE TABLE test_data (id INTEGER, value VARCHAR)")
+            await insert_tool.execute(table="test_data", data=[{"id": 1, "value": "test"}])
+
             # Now test RAG
             rag = RAG(database=db)
             toolset = rag.get_toolset()
             rag_sql_tool = [t for t in toolset.tools if t.name == "sql"][0]
-            
+
             # SELECT should work
-            select_result = await rag_sql_tool.execute(
-                query="SELECT * FROM test_data"
-            )
+            select_result = await rag_sql_tool.execute(query="SELECT * FROM test_data")
             assert select_result["row_count"] == 1
             print(f"✓ RAG Database SELECT works: {select_result['row_count']} rows")
-            
+
             # INSERT should fail
-            insert_result = await rag_sql_tool.execute(
-                query="INSERT INTO test_data (id, value) VALUES (2, 'fail')"
-            )
+            insert_result = await rag_sql_tool.execute(query="INSERT INTO test_data (id, value) VALUES (2, 'fail')")
             assert "error" in insert_result
             assert "Only SELECT queries are allowed" in insert_result["error"]
             print(f"✓ RAG Database INSERT blocked: {insert_result['error']}")
@@ -352,14 +310,14 @@ class TestRAGDatabaseReadonly:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "test.duckdb"
             connection = f"duckdb:///{db_path}"
-            
+
             db = Database(connection)
             rag = RAG(database=db)
             toolset = rag.get_toolset()
-            
+
             tool_names = {t.name for t in toolset.tools}
             expected = {"sql"}
-            
+
             assert tool_names == expected
             assert "insert" not in tool_names
             assert "update" not in tool_names
@@ -372,33 +330,29 @@ class TestRAGDatabaseReadonly:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "production.duckdb"
             connection = f"duckdb:///{db_path}"
-            
+
             # Setup: Create database with data
             db = Database(connection)
             db_toolset = db.get_toolset()
             sql_tool = [t for t in db_toolset.tools if t.name == "sql"][0]
             insert_tool = [t for t in db_toolset.tools if t.name == "insert"][0]
-            
-            await sql_tool.execute(
-                query="CREATE TABLE employees (id INTEGER, name VARCHAR, salary FLOAT)"
-            )
+
+            await sql_tool.execute(query="CREATE TABLE employees (id INTEGER, name VARCHAR, salary FLOAT)")
             await insert_tool.execute(
                 table="employees",
                 data=[
                     {"id": 1, "name": "Alice", "salary": 100000.0},
                     {"id": 2, "name": "Bob", "salary": 85000.0},
-                ]
+                ],
             )
-            
+
             # Now use RAG for readonly queries
             rag = RAG(database=db)
             toolset = rag.get_toolset()
             rag_sql_tool = [t for t in toolset.tools if t.name == "sql"][0]
-            
-            result = await rag_sql_tool.execute(
-                query="SELECT * FROM employees WHERE salary > 90000"
-            )
-            
+
+            result = await rag_sql_tool.execute(query="SELECT * FROM employees WHERE salary > 90000")
+
             assert result["row_count"] == 1
             assert result["rows"][0]["name"] == "Alice"
             print(f"✓ RAG Database DuckDB query: {result}")
