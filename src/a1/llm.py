@@ -237,10 +237,47 @@ def LLM(
         
         # Auto-add Done tool if tools provided but none are terminal
         if tools:
-            # Ensure tools are Tool objects (filter out any that aren't)
+            # Normalize tools to Tool objects. Tools may be passed as:
+            # - a1.models.Tool instances
+            # - executor.ToolWrapper instances (wrapping a Tool)
+            # - dicts produced by Pydantic model_dump (legacy/serialization)
             from .models import Tool as ToolClass
-            tools = [t for t in tools if isinstance(t, ToolClass)]
-            
+            from pydantic import create_model
+
+            normalized = []
+            for t in tools:
+                # Already a Tool
+                if isinstance(t, ToolClass):
+                    normalized.append(t)
+                    continue
+                # ToolWrapper from executor - unwrap
+                if hasattr(t, 'tool') and isinstance(getattr(t, 'tool'), ToolClass):
+                    normalized.append(getattr(t, 'tool'))
+                    continue
+                # Dict-like (from model_dump) - reconstruct minimal Tool
+                if isinstance(t, dict):
+                    name = t.get('name') or t.get('tool') or 'unknown_tool'
+                    desc = t.get('description', '')
+                    # Create minimal input/output schemas so we can produce JSON schema
+                    InputModel = create_model(f"{name}_Input")
+                    OutputModel = create_model(f"{name}_Output", result=(Any, ...))
+                    try:
+                        reconstructed = ToolClass(
+                            name=name,
+                            description=desc,
+                            input_schema=InputModel,
+                            output_schema=OutputModel,
+                            execute=(lambda **k: None),
+                            is_terminal=bool(t.get('is_terminal', False))
+                        )
+                        normalized.append(reconstructed)
+                        continue
+                    except Exception:
+                        # Fallthrough - skip if reconstruction fails
+                        continue
+                # Unknown type - skip
+            tools = normalized
+
             has_terminal = any(t.is_terminal for t in tools)
             if not has_terminal:
                 from .builtin_tools import Done
@@ -329,20 +366,43 @@ def LLM(
             if target_output_schema and not api_tools:
                 call_params["response_format"] = target_output_schema
             
-            # Call LLM with retry logic for tool validation errors
-            max_retries = 2
+            # Call LLM with retry logic using exponential backoff
+            # Use retry_strategy.max_iterations if available, default to 3
+            import asyncio
+            max_retries = retry_strategy.max_iterations if retry_strategy else 3
+            base_delay = 0.1  # 100ms initial delay
+            
             for attempt in range(max_retries):
                 try:
                     response = await acompletion(**call_params)
                     break  # Success
                 except Exception as e:
-                    # Retry without tool_choice if this looks like a tool validation error
-                    error_msg = str(e)
-                    if "tool call validation failed" in error_msg and attempt < max_retries - 1:
-                        logger.warning(f"Attempt {attempt+1}: Tool validation error, retrying")
+                    is_last_attempt = (attempt >= max_retries - 1)
+                    
+                    if is_last_attempt:
+                        # No more retries, raise the error
+                        raise
+                    
+                    # Log the retry attempt
+                    logger.warning(f"Attempt {attempt + 1}/{max_retries} failed: {type(e).__name__}: {str(e)[:100]}")
+                    
+                    # Check if this looks like a tool-related error - if so, remove tool_choice
+                    error_msg = str(e).lower()
+                    is_tool_error = any([
+                        "tool call validation failed" in error_msg,
+                        "failed to call a function" in error_msg,
+                        "tool_use_failed" in error_msg,
+                        "tool use failed" in error_msg,
+                    ])
+                    
+                    if is_tool_error:
+                        logger.warning(f"Tool error detected, removing tool_choice for retry")
                         call_params.pop("tool_choice", None)
-                        continue
-                    raise
+                    
+                    # Exponential backoff: 100ms, 200ms, 400ms, 800ms, etc.
+                    delay = base_delay * (2 ** attempt)
+                    logger.debug(f"Retrying in {delay*1000:.0f}ms...")
+                    await asyncio.sleep(delay)
             
             # Extract response
             message = response.choices[0].message

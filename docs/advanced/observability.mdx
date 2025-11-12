@@ -1,8 +1,68 @@
+---
+title: Observability
+---
+
 # Observability
 
-Monitor and trace agent execution with OpenTelemetry.
+Monitor and trace agent execution with OpenTelemetry and comprehensive context tracking.
 
-## Setup
+## Context Observability
+
+A1 tracks all agent interactions across labeled contexts for full debugging visibility:
+
+```python
+from a1 import get_runtime
+
+runtime = get_runtime()
+
+# View all contexts
+for name, ctx in runtime.CTX.items():
+    print(f"{name}: {len(ctx.messages)} messages")
+
+# Get full chronological history
+all_messages = runtime.get_full_context()
+print(f"Total messages: {len(all_messages)}")
+
+# Filter by context labels
+main_messages = runtime.get_full_context("main")
+attempt_messages = runtime.get_full_context("attempt")
+intermediate_messages = runtime.get_full_context("intermediate")
+
+print(f"Main: {len(main_messages)}")
+print(f"Attempts: {len(attempt_messages)}")
+print(f"Intermediate: {len(intermediate_messages)}")
+
+# Analyze by timestamp
+from datetime import datetime, timedelta
+recent = [m for m in all_messages if m.timestamp > datetime.now() - timedelta(hours=1)]
+
+# Group by role
+by_role = {}
+for msg in all_messages:
+    by_role.setdefault(msg.role, []).append(msg)
+```
+
+### Context Labels
+
+- **`main`**: Successful user inputs and outputs
+- **`attempt_*`**: Code generation retries and failures (e.g., `attempt_a`, `attempt_b`)
+- **`intermediate_*`**: LLM calls from within generated code
+
+### Debugging Failed Attempts
+
+```python
+# View all retry attempts
+runtime = get_runtime()
+attempt_contexts = {k: v for k, v in runtime.CTX.items() if k.startswith("attempt_")}
+
+for name, ctx in attempt_contexts.items():
+    print(f"\n{name}:")
+    for msg in ctx.messages:
+        if msg.role == "user" and "error" in msg.content.lower():
+            print(f"  Error: {msg.content}")
+```
+
+## OpenTelemetry Setup
 
 A1 integrates with OpenTelemetry for observability:
 

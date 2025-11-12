@@ -1,3 +1,7 @@
+---
+title: Context & History
+---
+
 # Context & History
 
 Context tracks conversation history for agents, including user messages, assistant responses, and tool calls.
@@ -94,14 +98,16 @@ calc_result = await calculator(a=2, b=2, operation="add")
 ### AOT (Ahead-of-Time) Mode
 
 **During compilation:**
-- Code generation LLM calls append to a **temporary context** (not main)
-- Multiple candidates may generate in parallel
+- Code generation LLM calls append to **attempt contexts** (e.g., `attempt_a`, `attempt_b`)
+- Multiple candidates may generate in parallel, each with their own attempt context
+- Failed attempts tracked in attempt contexts with error messages
 - **Main context is NOT polluted with generation attempts**
 
 **After compilation:**
 ```python
 compiled = await runtime.aot(agent)
-# No context appended during compilation
+# No context appended to main during compilation
+# Check runtime.CTX for attempt_* contexts to see generation history
 ```
 
 **During execution of compiled tool:**
@@ -118,27 +124,30 @@ Same as JIT - LLM and tool calls within the compiled code append to main context
 
 ### Summary: What Goes into Main Context
 
-| Operation | Main Context? | What Gets Appended | On Failure |
-|-----------|--------------|-------------------|------------|
-| `runtime.jit(agent, ...)` **start** | ✅ Yes | User input: `{"field": "value"}` | Nothing |
-| `runtime.jit(agent, ...)` **end** | ✅ Yes | Assistant output: `{"result": ...}` | Nothing (raises exception) |
-| `runtime.aot(agent)` | ❌ No | Nothing (uses temp context) | Nothing |
-| `compiled_tool(**input)` via `Tool.__call__` | ❌ No | Nothing (it's a regular tool call) | Nothing |
-| `runtime.execute(tool, **input)` | ✅ Yes (non-LLM only) | Assistant tool_call + tool result | Error in tool message |
-| **LLM call in generated code** | ✅ Yes | User prompt + assistant response | Nothing (raises exception) |
-| **Non-LLM tool in generated code** | ✅ Yes | Assistant tool_call + tool result | Error in tool message |
-| **LLM tool via runtime.execute()** | ❌ No | Nothing (LLM tools skip context) | Nothing |
-| Code generation retries | ❌ No | Nothing (internal context) | N/A |
-| Multiple candidates (AOT/JIT) | ❌ No | Nothing (only winner matters) | N/A |
+| Operation | Main Context? | Attempt Context? | What Gets Appended | On Failure |
+|-----------|--------------|------------------|-------------------|------------|
+| `runtime.jit(agent, ...)` **start** | ✅ Yes | ✅ Yes | User input: `{"field": "value"}` | User input only |
+| `runtime.jit(agent, ...)` **end** | ✅ Yes | ❌ No | Assistant output: `{"result": ...}` | Nothing (raises exception) |
+| Code generation in JIT | ❌ No | ✅ Yes | Failed code + error messages | All tracked in attempt context |
+| `runtime.aot(agent)` | ❌ No | ✅ Yes | Generation attempts | All tracked in attempt context |
+| `compiled_tool(**input)` via `Tool.__call__` | ❌ No | ❌ No | Nothing (it's a regular tool call) | Nothing |
+| `runtime.execute(tool, **input)` | ✅ Yes (non-LLM only) | ❌ No | Assistant tool_call + tool result | Error in tool message |
+| **LLM call in generated code** | ❌ No | ✅ Yes (uses intermediate) | User prompt + assistant response | Nothing (raises exception) |
+| **Non-LLM tool in generated code** | ✅ Yes | ❌ No | Assistant tool_call + tool result | Error in tool message |
+| **LLM tool via runtime.execute()** | ❌ No | ✅ Yes (uses intermediate) | User prompt + response | Nothing (raises exception) |
+| Code generation retries | ❌ No | ✅ Yes | Failed attempts | Each retry tracked separately |
+| Multiple candidates (AOT/JIT) | ❌ No | ✅ Yes | All candidates | Only successful one reaches main |
 
 **Key Insights:**
 
-1. **JIT appends to main context** - Both input (at start) and output (at end)
-2. **AOT compilation uses temp context** - Main context stays clean during generation
-3. **AOT execution (compiled tool) doesn't append** - It's just a regular tool
-4. **Generated code's LLM/tool calls DO append** - They use the main context
-5. **On failure, nothing is appended** - Failed operations raise exceptions without polluting context
-6. **LLM tools are special** - When called via `runtime.execute()`, they don't append (to avoid double-tracking)
+1. **JIT appends to main context** - User input (at start) and successful output (at end)
+2. **JIT also uses attempt context** - Tracks all code generation and execution attempts
+3. **Attempt contexts preserve history** - Copy of main context at start, plus all generation attempts
+4. **AOT uses attempt contexts** - Main context stays completely clean during compilation
+5. **AOT execution (compiled tool) doesn't append** - It's just a regular tool
+6. **LLM calls use intermediate contexts** - When called from generated code or via execute()
+7. **Failed attempts tracked separately** - Main context only shows successful end-to-end flows
+8. **Full observability** - Use `runtime.get_full_context()` to see everything across all contexts
 
 
 

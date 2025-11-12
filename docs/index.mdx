@@ -1,0 +1,75 @@
+---
+title: A1 Agent Compiler
+description: Build reliable AI agents with AOT/JIT compilation
+---
+
+# Welcome to A1
+
+A1 is an agent compiler that transforms natural language agent descriptions into executable, type-safe Python code. Build reliable AI agents with ahead-of-time (AOT) or just-in-time (JIT) compilation.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="AOT Compilation" icon="bolt" href="/guide/compilation#aot-compilation">
+    Compile agents ahead of time for predictable, fast execution
+  </Card>
+  <Card title="JIT Execution" icon="zap" href="/guide/compilation#jit-execution">
+    Generate code on-the-fly for rapid prototyping
+  </Card>
+  <Card title="Type Safety" icon="shield-check" href="/guide/agents">
+    Pydantic schemas for inputs, outputs, and tool definitions
+  </Card>
+  <Card title="Retry & Validation" icon="arrows-rotate" href="/advanced/retry">
+    Built-in retry strategies with exponential backoff
+  </Card>
+</CardGroup>
+
+## Quick Start
+
+Install A1 and build your first agent in minutes:
+
+```bash
+pip install a1
+```
+
+```python
+from a1 import Agent, Tool, Runtime, LLM
+
+# Define a calculator tool
+@tool
+def calculator(a: int, b: int, operation: str) -> int:
+    """Perform basic arithmetic operations."""
+    if operation == "add":
+        return a + b
+    elif operation == "multiply":
+        return a * b
+
+# Create an agent
+agent = Agent(
+    name="math_agent",
+    description="An agent that solves math problems",
+    tools=[calculator, LLM("gpt-4o-mini")]
+)
+
+# Execute with JIT
+async with Runtime() as runtime:
+    result = await runtime.jit(agent, query="What is 5 times 6?")
+    print(result)
+```
+
+## What's Next?
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/getting-started/installation">
+    Set up A1 in your environment
+  </Card>
+  <Card title="Core Concepts" icon="book" href="/getting-started/concepts">
+    Learn about agents, tools, and compilation
+  </Card>
+  <Card title="Build Your First Agent" icon="rocket" href="/getting-started/quick-start">
+    Follow our step-by-step tutorial
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/runtime">
+    Explore the full API documentation
+  </Card>
+</CardGroup>

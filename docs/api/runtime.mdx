@@ -1,3 +1,7 @@
+---
+title: Runtime API
+---
+
 # Runtime & Strategies
 
 The **Runtime** orchestrates code generation, verification, cost estimation, and execution. It's built on three customizable **core primitives**: Generate, Verify, and Cost.
@@ -163,19 +167,46 @@ await agent.jit(strategy=strategy)
 
 ## Contexts
 
-Runtime manages global message contexts for tracking conversation history:
+Runtime manages global message contexts for tracking conversation history with labeled organization:
 
 ```python
-from a1 import get_context, get_runtime
+from a1 import get_context, new_context, get_runtime
 
 # Get or create a named context
 ctx = get_context('my_conversation')
-ctx.messages.append({"role": "user", "content": "Hello"})
+ctx.user("Hello")
+
+# Create auto-named contexts with labels
+attempt_ctx = new_context("attempt")  # Creates "attempt_a"
+attempt_ctx2 = new_context("attempt")  # Creates "attempt_b"
+intermediate = new_context("intermediate", branch_from=ctx)  # Copy from ctx
 
 # All contexts stored in runtime
 runtime = get_runtime()
 print(runtime.CTX)  # Dict of all named contexts
+
+# Get full context history across all/specific labels
+all_messages = runtime.get_full_context()  # All contexts, sorted by timestamp
+main_only = runtime.get_full_context("main")  # Just main context
+attempts = runtime.get_full_context("attempt")  # All attempt_* contexts
+combined = runtime.get_full_context(["main", "intermediate"])  # Multiple labels
 ```
+
+### Context Labels
+
+A1 uses labeled contexts for organization:
+
+- **`main`**: Clean successful execution history
+- **`attempt_*`**: Code generation/execution retry attempts (auto-named: `attempt_a`, `attempt_b`, etc.)
+- **`intermediate_*`**: LLM tool calls from within generated code
+- **Custom**: Any name you create via `get_context("name")`
+
+### Message Metadata
+
+Every message includes:
+- `timestamp`: datetime of creation (auto-populated)
+- `message_id`: Unique UUID for deduplication
+- `role`, `content`, `name`, `tool_call_id`, `tool_calls`: Standard fields
 
 ## Global Runtime Management
 

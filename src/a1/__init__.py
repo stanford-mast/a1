@@ -36,7 +36,7 @@ Quick Start:
 from .models import Agent, Tool, ToolSet, Skill, SkillSet, tool, Message, Strategy, RetryStrategy
 from .builtin_tools import LLM, Done
 from .llm import LLMInput, LLMOutput, no_context
-from .runtime import Runtime, get_runtime, set_runtime, set_strategy, get_context
+from .runtime import Runtime, get_runtime, set_runtime, set_strategy, get_context, new_context
 from .context import Context, no_history, Compact, BaseCompact
 from .executor import Executor, BaseExecutor, CodeOutput
 from .strategies import (
@@ -80,6 +80,7 @@ __all__ = [
     "set_runtime",
     "set_strategy",
     "get_context",
+    "new_context",
     
     # Context management
     "Context",

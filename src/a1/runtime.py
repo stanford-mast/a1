@@ -480,7 +480,7 @@ class Runtime:
             # Create attempt context by copying main context
             # This preserves conversation history while keeping attempts separate
             # Each code generation attempt gets its own context (attempt_a, attempt_b, etc.)
-            attempt_context = new_context("attempt", source_context=context)
+            attempt_context = new_context("attempt", branch_from=context)
             
             # Add user message to both main and attempt contexts
             # Main gets the clean successful history
@@ -1019,7 +1019,7 @@ def get_context(key: str = "main"):
     return runtime.CTX[key]
 
 
-def new_context(label: str = "intermediate", source_context: Optional["Context"] = None):
+def new_context(label: str = "intermediate", branch_from: Optional["Context"] = None):
     """
     Create a new context with auto-generated unique name and register it in Runtime.
     
@@ -1027,7 +1027,7 @@ def new_context(label: str = "intermediate", source_context: Optional["Context"]
     
     Args:
         label: Label prefix for the context (e.g., "attempt", "intermediate", "main")
-        source_context: Optional source context to copy messages from
+        branch_from: Optional source context to copy messages from
     
     Returns:
         Newly created Context object registered in Runtime.CTX
@@ -1066,8 +1066,8 @@ def new_context(label: str = "intermediate", source_context: Optional["Context"]
     ctx = Context()
     
     # Copy messages from source if provided
-    if source_context is not None:
-        ctx.messages = source_context.messages.copy()
+    if branch_from is not None:
+        ctx.messages = branch_from.messages.copy()
     
     # Link context to runtime for persistence
     if runtime.keep_updated and runtime.file_path:

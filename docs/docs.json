@@ -1,0 +1,54 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "A1",
+  "description": "Agent Compiler - Build Reliable AI Agents",
+  "logo": "assets/a1_icon.svg",
+  "favicon": "assets/a1_icon.svg",
+  "colors": {
+    "primary": "#ffe067"
+  },
+  "theme": "mint",
+  "navigation": {
+    "pages": [
+      "index.mdx",
+      {
+        "group": "Getting Started",
+        "pages": [
+          "getting-started/installation",
+          "getting-started/quick-start",
+          "getting-started/concepts"
+        ]
+      },
+      {
+        "group": "Core Guides",
+        "pages": [
+          "guide/agents",
+          "guide/tools",
+          "guide/llm",
+          "guide/compilation",
+          "guide/context",
+          "guide/skills",
+          "guide/rag"
+        ]
+      },
+      {
+        "group": "Advanced Topics",
+        "pages": [
+          "advanced/strategies",
+          "advanced/retry",
+          "advanced/serialization",
+          "advanced/observability",
+          "advanced/criteria"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "pages": [
+          "api/runtime",
+          "api/models",
+          "api/builtin-tools"
+        ]
+      }
+    ]
+  }
+}

@@ -63,6 +63,27 @@ class ToolWrapper:
     def __init__(self, tool):
         self.tool = tool
     
+    # Expose Tool attributes for compatibility when ToolWrapper is passed around
+    @property
+    def name(self):
+        return self.tool.name
+    
+    @property
+    def description(self):
+        return self.tool.description
+    
+    @property
+    def is_terminal(self):
+        return self.tool.is_terminal
+    
+    @property
+    def input_schema(self):
+        return self.tool.input_schema
+    
+    @property
+    def output_schema(self):
+        return self.tool.output_schema
+    
     def _convert_to_llm_content(self, content: Any) -> str:
         """
         Convert any input type to a string suitable for LLM content.

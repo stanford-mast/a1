@@ -1,3 +1,7 @@
+---
+title: Serialization
+---
+
 # Serialization & Persistence
 
 A1 supports serialization and deserialization of Agents, Tools, Runtime, and Context using Pydantic models and file persistence, enabling:
@@ -45,13 +49,18 @@ ctx = get_context("main")
 ctx.user("Hello")
 ctx.assistant("Hi there")
 
-# Serialize to JSON
-messages_data = [msg.model_dump() for msg in ctx.messages]
+# Serialize to JSON (mode='json' handles datetime serialization)
+messages_data = [msg.model_dump(mode='json') for msg in ctx.messages]
 json_str = json.dumps(messages_data, indent=2)
 
 # Deserialize
 messages = [Message(**data) for data in json.loads(json_str)]
 restored_ctx = Context(messages=messages)
+
+# Messages include metadata
+for msg in restored_ctx.messages:
+    print(f"{msg.timestamp}: {msg.role} - {msg.content}")
+    print(f"  ID: {msg.message_id}")
 ```
 
 ### Manual File Persistence
@@ -61,12 +70,12 @@ from a1 import Context, get_context
 from a1.models import Message
 import json
 
-# Save to file manually
+# Save to file manually (mode='json' handles datetime)
 ctx = get_context("main")
 ctx.user("Hello")
 
 with open("context.json", "w") as f:
-    json.dump([msg.model_dump() for msg in ctx.messages], f, indent=2)
+    json.dump([msg.model_dump(mode='json') for msg in ctx.messages], f, indent=2)
 
 # Load from file manually
 with open("context.json") as f:

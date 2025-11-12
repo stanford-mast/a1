@@ -106,12 +106,32 @@ class Tool(BaseModel):
             # If it's a BaseModel instance, unpack it
             if isinstance(arg, BaseModel):
                 input_obj = arg
-                # Extract all fields from the input object as kwargs
-                if hasattr(input_obj, 'model_dump'):
-                    kwargs = {**input_obj.model_dump(), **kwargs}
+                # Extract all fields from the input object as kwargs without serializing
+                # Use attribute access to preserve runtime objects (e.g., ToolWrapper)
+                try:
+                    # Pydantic V2: model_fields contains field names
+                    field_names = list(getattr(input_obj.__class__, 'model_fields', {}).keys())
+                except Exception:
+                    field_names = []
+
+                if field_names:
+                    kwargs_from_obj = {k: getattr(input_obj, k) for k in field_names}
                 else:
-                    # Fallback for non-Pydantic objects
-                    kwargs = {**{k: getattr(input_obj, k) for k in self.input_schema.model_fields}, **kwargs}
+                    # Fallback: attempt to use model_dump but keep raw attributes where possible
+                    try:
+                        dumped = input_obj.model_dump()
+                        kwargs_from_obj = {}
+                        for k, v in dumped.items():
+                            # If the attribute exists on the object, prefer the raw attribute
+                            if hasattr(input_obj, k):
+                                kwargs_from_obj[k] = getattr(input_obj, k)
+                            else:
+                                kwargs_from_obj[k] = v
+                    except Exception:
+                        # Last resort: iterate input schema fields
+                        kwargs_from_obj = {k: getattr(input_obj, k) for k in getattr(self.input_schema, 'model_fields', {})}
+
+                kwargs = {**kwargs_from_obj, **kwargs}
             # If it's a string and the first input field is 'content', use it for that field
             elif isinstance(arg, str) and 'content' in self.input_schema.model_fields:
                 kwargs['content'] = arg
