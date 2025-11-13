@@ -34,6 +34,9 @@ dev = [
     "ruff>=0.8.0",
     "mypy>=1.13.0",
 ]
+examples = [
+    "z3-solver>=4.13.0",
+]
 
 [project.scripts]
 a1 = "a1.cli:main"
