@@ -54,6 +54,7 @@ from .serialization import (
     save_skill_to_file, load_skill_from_file,
 )
 import a1.code_utils as code_utils
+from .em import EM
 
 __version__ = "0.1.2"
 
@@ -73,6 +74,7 @@ __all__ = [
     "LLMOutput",
     "no_context",
     "Done",
+    "EM",
     
     # Runtime
     "Runtime",

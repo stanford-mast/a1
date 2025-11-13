@@ -118,6 +118,35 @@ class Runtime:
         # Current agent being executed (for tool calling)
         self.current_agent: Optional[Agent] = None
         
+        # Embedding cache: map from hash -> vector (or list of vectors)
+        # Used by EM tools to avoid recomputing embeddings for repeated items.
+        # Keys are hex hashes of the serialized item(s).
+        self._embeddings_cache: Dict[str, List[float]] = {}
+
+    def _hash_string(self, s: str) -> str:
+        """Compute a stable hash for a string to use as cache key."""
+        return hashlib.sha256(s.encode('utf-8')).hexdigest()
+
+    def get_or_compute_embedding(self, text: str, embed_fn) -> List[float]:
+        """Return cached embedding for text or compute via embed_fn(text).
+
+        embed_fn should be a callable that returns a list[float]. This centralizes
+        caching so callers (EM tool) don't recompute embeddings repeatedly.
+        """
+        key = self._hash_string(text)
+        if key in self._embeddings_cache:
+            return self._embeddings_cache[key]
+        vec = embed_fn(text)
+        self._embeddings_cache[key] = vec
+        return vec
+
+    def get_embeddings_for_items(self, items: List[str], embed_fn) -> List[List[float]]:
+        """Get embeddings for a list of stringified items, using cache.
+
+        Returns list of vectors in the same order.
+        """
+        return [self.get_or_compute_embedding(it, embed_fn) for it in items]
+        
         # Save initial state if persistence enabled
         if self.keep_updated and self.file_path:
             self._save()
@@ -258,6 +287,13 @@ class Runtime:
         max_retries = strategy.max_iterations
         
         tracer = trace.get_tracer(__name__)
+        
+        # Early verification: Check for large enums requiring EM tool BEFORE code generation
+        for verifier in verify:
+            if hasattr(verifier, '_check_large_enums'):
+                has_error, error_msg = verifier._check_large_enums(agent)
+                if has_error:
+                    raise ValueError(f"Agent validation failed: {error_msg}")
         
         with tracer.start_as_current_span("aot") as span:
             span.set_attribute("agent.name", agent.name)

@@ -16,6 +16,14 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, ConfigDict, SkipValidation
 
 from .models import Tool
+from .em import EM, _stringify_item, _pseudo_embed
+from .schema_utils import (
+    reduce_large_enums,
+    clean_schema_for_openai,
+    prepare_response_format,
+    reduce_large_enums_in_tool_schemas
+)
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -333,6 +341,23 @@ def LLM(
             if not api_tools:
                 api_tools = None
         
+        # If we have candidate api_tools schemas, run reduction on each one's parameters
+        if api_tools:
+            logger.info(f"Checking {len(api_tools)} tool schemas for large enums...")
+            try:
+                from .runtime import get_runtime
+                runtime = get_runtime()
+                await reduce_large_enums_in_tool_schemas(
+                    api_tools,
+                    context_text=processed_content if 'processed_content' in locals() else content,
+                    runtime=runtime,
+                    threshold=100,
+                    target_size=100
+                )
+            except Exception as e:
+                # Non-fatal - continue without reduction
+                logger.warning(f'Failed to reduce enums in api_tools: {e}')
+        
         # Parse provider from model string if it contains ":"
         if ":" in model:
             provider, model_name = model.split(":", 1)
@@ -362,9 +387,44 @@ def LLM(
                 call_params["tool_choice"] = "auto"
             
             # If output_schema is provided and we're not using tools, use response_format
-            # any-llm accepts either dict or Pydantic BaseModel type
+            # Convert Pydantic model to JSON schema dict, reduce large enums, and prepare for OpenAI
             if target_output_schema and not api_tools:
-                call_params["response_format"] = target_output_schema
+                logger.info(f"Preparing response_format for {target_output_schema.__name__ if hasattr(target_output_schema, '__name__') else 'unknown'}...")
+                try:
+                    import copy
+                    from .runtime import get_runtime
+                    
+                    runtime = get_runtime()
+                    
+                    # Step 1: Convert Pydantic model to JSON schema
+                    schema_dict = target_output_schema.model_json_schema()
+                    
+                    # Step 2: Reduce large enums (>100 values) using semantic similarity
+                    schema_dict = reduce_large_enums(
+                        schema_dict,
+                        context_text=content,
+                        runtime=runtime,
+                        threshold=100,
+                        target_size=100
+                    )
+                    
+                    # Step 3: Clean schema for OpenAI strict mode (remove extra keys from $ref)
+                    schema_dict = clean_schema_for_openai(schema_dict)
+                    
+                    # Step 4: Wrap in proper response_format structure
+                    response_format = prepare_response_format(
+                        schema_dict,
+                        name=target_output_schema.__name__,
+                        strict=True
+                    )
+                    
+                    logger.info(f"Successfully prepared response_format for {target_output_schema.__name__}")
+                    call_params["response_format"] = response_format
+                    
+                except Exception as e:
+                    # Fallback - use original schema (might fail but at least we tried)
+                    logger.warning(f"Failed to prepare response_format: {e}, using original schema")
+                    call_params["response_format"] = target_output_schema
             
             # Call LLM with retry logic using exponential backoff
             # Use retry_strategy.max_iterations if available, default to 3

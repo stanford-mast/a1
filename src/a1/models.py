@@ -26,9 +26,35 @@ class Message(BaseModel):
     message_id: str = Field(default_factory=lambda: uuid4().hex, description="Unique message ID for deduplication")
 
 
-class RetryStrategy(BaseModel):
+class AttemptStrategy(BaseModel):
     """
-    Base retry strategy for LLM operations.
+    Base strategy for operations that may require multiple attempts.
+    
+    Attributes:
+        max_iterations: Maximum retry attempts (default: 3)
+    """
+    max_iterations: int = Field(default=3, description="Maximum retry attempts per operation")
+
+
+class ParallelStrategy(AttemptStrategy):
+    """
+    Strategy for parallel batch processing with rate limit handling.
+    
+    Used for operations that process large datasets in chunks with parallel execution.
+    Implements adaptive concurrency control with exponential backoff on rate limit errors.
+    
+    Attributes:
+        max_iterations: Maximum retry attempts per chunk (default: 3)
+        chunk_size: Number of items per chunk (default: 2048)
+        max_parallel_chunks: Maximum chunks to process concurrently (default: 16)
+    """
+    chunk_size: int = Field(default=2048, description="Number of items per chunk/batch")
+    max_parallel_chunks: int = Field(default=16, description="Maximum chunks to process in parallel")
+
+
+class RetryStrategy(AttemptStrategy):
+    """
+    Retry strategy for LLM operations.
     
     Controls retry behavior and parallel execution for operations that may need
     multiple attempts to succeed (e.g., LLM calls with structured output validation).
@@ -37,7 +63,6 @@ class RetryStrategy(BaseModel):
         max_iterations: Maximum retry attempts per operation (default: 3)
         num_candidates: Number of parallel attempts to execute (default: 1)
     """
-    max_iterations: int = Field(default=3, description="Maximum retry attempts per operation")
     num_candidates: int = Field(default=1, description="Number of parallel attempts to execute")
 
 

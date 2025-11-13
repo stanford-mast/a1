@@ -75,6 +75,30 @@ llm = LLM(
 
 Use LLM tools like any other tool in agents.
 
+## EM
+
+EMs are tools that call embedding models for semantic similarity. The use-case for this is classification. If any enum in your agent/tool schemas (input/output) has >100 values, the compiler translates all relevant LLM calls into a fused EM-LLM pipeline that first filters to semantically relevant enum options and then invokes the LLM with its output constrained to be one of the filtered options.
+
+A1 statically detects enums that are too large and will require an EM tool if detected. A1 transparently owns adaptive rate limit handling, chunk-parallelism, and caching vectors within the current Runtime.
+
+Semantic classification example:
+
+```python
+from enum import Enum
+from pydantic import BaseModel, Field
+
+# Large enum (1M values)
+Category = Enum('Category', {f'CAT_{i}': f'cat_{i}' for i in range(1_000_000)})
+
+class Output(BaseModel):
+    category: Category
+    
+agent = Agent(
+    output_schema=Output,
+    tools=[EM("text-embedding-3-small"), LLM("gpt-4.1")]  # EM required
+)
+```
+
 ## RAG
 
 RAG provides readonly or full access to databases and filesystems:

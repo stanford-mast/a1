@@ -197,6 +197,11 @@ class BaseVerify(Verify):
         except SyntaxError as e:
             return False, f"Syntax error: {e}"
         
+        # Check for large enums requiring EM tool
+        has_large_enum, enum_error = self._check_large_enums(agent)
+        if has_large_enum:
+            return False, enum_error
+        
         # Check for dangerous operations
         for node in ast.walk(tree):
             # Check imports - allow them, they work fine in exec()
@@ -228,6 +233,101 @@ class BaseVerify(Verify):
                 return False, f"Type checking failed: {type_error}"
         
         return True, None
+    
+    def _check_large_enums(self, agent: Any) -> Tuple[bool, Optional[str]]:
+        """
+        Check if agent has large enums (>100 values) and verify EM tool availability.
+        
+        Large enums require the EM (Embedding) tool for semantic reduction.
+        
+        Returns:
+            Tuple of (has_error, error_message)
+        """
+        from .schema_utils import detect_large_enums
+        
+        # Check agent input schema
+        if hasattr(agent, 'input_schema') and hasattr(agent.input_schema, 'model_json_schema'):
+            try:
+                input_schema = agent.input_schema.model_json_schema()
+                large_enums = detect_large_enums(input_schema, threshold=100)
+                if large_enums:
+                    # Check if EM tool is available in agent tools
+                    has_em = self._has_em_tool(agent)
+                    if not has_em:
+                        enum_info = ", ".join([f"{path} ({size} values)" for path, size in large_enums])
+                        return True, (
+                            f"Agent input schema contains large enums requiring EM tool: {enum_info}. "
+                            f"Add EM() to agent tools or reduce enum size to ≤100 values."
+                        )
+            except Exception:
+                pass  # Ignore schema extraction errors
+        
+        # Check agent output schema
+        if hasattr(agent, 'output_schema') and hasattr(agent.output_schema, 'model_json_schema'):
+            try:
+                output_schema = agent.output_schema.model_json_schema()
+                large_enums = detect_large_enums(output_schema, threshold=100)
+                if large_enums:
+                    has_em = self._has_em_tool(agent)
+                    if not has_em:
+                        enum_info = ", ".join([f"{path} ({size} values)" for path, size in large_enums])
+                        return True, (
+                            f"Agent output schema contains large enums requiring EM tool: {enum_info}. "
+                            f"Add EM() to agent tools or reduce enum size to ≤100 values."
+                        )
+            except Exception:
+                pass
+        
+        # Check tool schemas
+        if hasattr(agent, 'tools'):
+            for tool in agent.tools:
+                # Check tool input schema
+                if hasattr(tool, 'input_schema') and hasattr(tool.input_schema, 'model_json_schema'):
+                    try:
+                        tool_input_schema = tool.input_schema.model_json_schema()
+                        large_enums = detect_large_enums(tool_input_schema, threshold=100)
+                        if large_enums:
+                            has_em = self._has_em_tool(agent)
+                            if not has_em:
+                                tool_name = getattr(tool, 'name', 'unknown')
+                                enum_info = ", ".join([f"{path} ({size} values)" for path, size in large_enums])
+                                return True, (
+                                    f"Tool '{tool_name}' input schema contains large enums requiring EM tool: {enum_info}. "
+                                    f"Add EM() to agent tools or reduce enum size to ≤100 values."
+                                )
+                    except Exception:
+                        pass
+                
+                # Check tool output schema
+                if hasattr(tool, 'output_schema') and hasattr(tool.output_schema, 'model_json_schema'):
+                    try:
+                        tool_output_schema = tool.output_schema.model_json_schema()
+                        large_enums = detect_large_enums(tool_output_schema, threshold=100)
+                        if large_enums:
+                            has_em = self._has_em_tool(agent)
+                            if not has_em:
+                                tool_name = getattr(tool, 'name', 'unknown')
+                                enum_info = ", ".join([f"{path} ({size} values)" for path, size in large_enums])
+                                return True, (
+                                    f"Tool '{tool_name}' output schema contains large enums requiring EM tool: {enum_info}. "
+                                    f"Add EM() to agent tools or reduce enum size to ≤100 values."
+                                )
+                    except Exception:
+                        pass
+        
+        return False, None
+    
+    def _has_em_tool(self, agent: Any) -> bool:
+        """Check if agent has EM tool available."""
+        if not hasattr(agent, 'tools'):
+            return False
+        
+        for tool in agent.tools:
+            tool_name = getattr(tool, 'name', '').lower()
+            if tool_name == 'em' or 'embedding' in tool_name:
+                return True
+        
+        return False
 
 
 class IsLoop(Verify):

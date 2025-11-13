@@ -280,6 +280,7 @@ If an error is reported, fix the previously generated code accordingly.
     
     def _build_definition_code(self, agent: Any, return_function: bool = False, task: str = "") -> str:
         """Build definition code showing tool signatures and agent schemas."""
+        import copy
         lines = []
         
         # IMPORTANT: Keep imports in definition_code so LLM can reference them.
@@ -339,6 +340,20 @@ If an error is reported, fix the previously generated code accordingly.
                 lines.append("")
             else:
                 # AOT mode: show the full input schema class
+                # We sanitize schemas for the definition_code to avoid huge enums being inlined
+                def_schema = None
+                try:
+                    if hasattr(agent.input_schema, 'model_json_schema'):
+                        def_schema = agent.input_schema.model_json_schema()
+                except Exception:
+                    def_schema = None
+
+                # If we have a JSON schema, de-enum any property with >100 options
+                if def_schema:
+                    from .schema_utils import de_enum_large_enums
+                    def_schema = copy.deepcopy(def_schema)
+                    de_enum_large_enums(def_schema, threshold=100)
+
                 lines.append(f"class {agent.input_schema.__name__}(BaseModel):")
                 for field_name, field_info in agent.input_schema.model_fields.items():
                     # Get type annotation as string
@@ -500,6 +515,17 @@ If an error is reported, fix the previously generated code accordingly.
         
         # Output schema definition comes AFTER tool definitions
         if hasattr(agent.output_schema, '__name__') and hasattr(agent.output_schema, 'model_fields'):
+            # Sanitize output schema JSON for large enums before including in definition code
+            try:
+                out_schema = agent.output_schema.model_json_schema()
+            except Exception:
+                out_schema = None
+
+            if out_schema:
+                from .schema_utils import de_enum_large_enums
+                out_schema = copy.deepcopy(out_schema)
+                de_enum_large_enums(out_schema, threshold=100)
+
             lines.append(f"class {agent.output_schema.__name__}(BaseModel):")
             for field_name, field_info in agent.output_schema.model_fields.items():
                 # Get type annotation as string
