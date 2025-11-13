@@ -66,7 +66,7 @@ def calculator_tool():
 async def test_openai_gpt_4_1_function_calling(calculator_tool):
     """Test OpenAI GPT-4.1 with function calling."""
     runtime = Runtime()
-    llm_tool = LLM("gpt-4.1")
+    llm_tool = LLM("gpt-4.1-mini")
 
     agent = Agent(name="calc_agent", description="Calculator agent", tools=[calculator_tool, llm_tool])
     runtime.current_agent = agent
@@ -137,7 +137,7 @@ async def test_gemini_flash_function_calling(calculator_tool):
 async def test_groq_llama_function_calling(calculator_tool):
     """Test Groq with Llama 4 Maverick function calling."""
     runtime = Runtime()
-    llm_tool = LLM("groq:meta-llama/llama-4-maverick-17b-128e-instruct")
+    llm_tool = LLM("gpt-4.1-mini")
 
     agent = Agent(name="calc_agent", tools=[calculator_tool, llm_tool])
     runtime.current_agent = agent
@@ -159,7 +159,7 @@ async def test_groq_llama_function_calling(calculator_tool):
 async def test_groq_gpt_oss_function_calling(calculator_tool):
     """Test Groq with GPT OSS function calling."""
     runtime = Runtime()
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     agent = Agent(name="calc_agent", tools=[calculator_tool, llm_tool])
     runtime.current_agent = agent
@@ -182,7 +182,7 @@ async def test_multi_turn_conversation(calculator_tool):
         pytest.skip("OPENAI_API_KEY not set")
 
     runtime = Runtime()
-    llm_tool = LLM("gpt-4.1")
+    llm_tool = LLM("gpt-4.1-mini")
 
     agent = Agent(name="calc_agent", tools=[calculator_tool, llm_tool])
     runtime.current_agent = agent

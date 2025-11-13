@@ -64,7 +64,6 @@ from .strategies import (
     Cost,
     Generate,
     IsLoop,
-    QualitativeCriteria,
     QuantitativeCriteria,
     Verify,
 )
@@ -72,8 +71,12 @@ from .extra_strategies import (
     ReduceAndGenerate,
     CheckOrdering,
 )
+from .extra_codecheck import (
+    IsFunction,
+    QualitativeCriteria,
+)
 
-__version__ = "0.1.3"
+__version__ = "0.1.5"
 
 __all__ = [
     # Core models
@@ -116,6 +119,7 @@ __all__ = [
     "CheckOrdering",
     "QualitativeCriteria",
     "IsLoop",
+    "IsFunction",
     "Cost",
     "BaseCost",
     "QuantitativeCriteria",

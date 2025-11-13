@@ -82,7 +82,7 @@ async def test_jit_llm_string_output():
     runtime = Runtime()
     set_runtime(runtime)
 
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     # Agent that uses LLM to answer questions
     InputSchema = create_model("Input", question=(str, Field(..., description="The question to answer")))
@@ -115,7 +115,7 @@ async def test_jit_llm_structured_output():
     runtime = Runtime()
     set_runtime(runtime)
 
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     # Agent that uses LLM to solve math with structured output
     InputSchema = create_model("Input", problem=(str, Field(..., description="Math problem to solve")))
@@ -150,7 +150,7 @@ async def test_aot_llm_string_output():
     runtime = Runtime()
     set_runtime(runtime)
 
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     # Agent that uses LLM for simple text generation
     InputSchema = create_model("Input", topic=(str, Field(..., description="Topic to write about")))
@@ -189,7 +189,7 @@ async def test_aot_llm_structured_output():
     runtime = Runtime()
     set_runtime(runtime)
 
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     # Agent that parses math problems into structured format
     InputSchema = create_model("Input", problem=(str, Field(..., description="Math problem in natural language")))
@@ -227,7 +227,7 @@ async def test_llm_structured_with_calculator_tool(calculator_tool):
     runtime = Runtime()
     set_runtime(runtime)
 
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     # Agent that:
     # 1. Uses LLM with structured output to parse problem
@@ -262,7 +262,7 @@ async def test_aot_llm_robust_json_parsing():
     runtime = Runtime()
     set_runtime(runtime)
 
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     # This is the same scenario as test_aot_generated_function_calls_llm_with_tools
     # but with expectation that generated code uses output_schema for reliability

@@ -190,7 +190,7 @@ async def test_gemini_message_format(calculator_tool):
 @pytest.mark.asyncio
 async def test_groq_message_format(calculator_tool):
     """Test Groq (Llama) message format after tool calling."""
-    llm_tool = LLM("groq:llama-3.3-70b-versatile")
+    llm_tool = LLM("gpt-4.1-mini")
 
     agent = Agent(name="test_agent", description="Test agent", tools=[calculator_tool, llm_tool])
 

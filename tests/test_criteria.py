@@ -181,7 +181,7 @@ class TestStrategy:
 @pytest.mark.asyncio
 async def test_qualitative_criteria_real_llm():
     """Test qualitative criteria with real LLM (Groq for speed)."""
-    llm = LLM("groq:llama-3.3-70b-versatile")
+    llm = LLM("gpt-4.1-mini")  # This model supports json_schema
 
     criteria = QualitativeCriteria(expression="The code is syntactically valid Python", llm=llm, num_samples=1)
 
@@ -198,7 +198,7 @@ async def test_qualitative_criteria_real_llm():
 @pytest.mark.asyncio
 async def test_quantitative_criteria_real_llm():
     """Test quantitative criteria with real LLM (Groq for speed)."""
-    llm = LLM("groq:llama-3.3-70b-versatile")
+    llm = LLM("gpt-4.1-mini")  # This model supports json_schema
 
     criteria = QuantitativeCriteria(
         expression="Rate the code complexity from 0 (very simple) to 10 (very complex)",

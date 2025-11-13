@@ -17,13 +17,15 @@ from .cfg_builder import (
 )
 from .codecheck import (
     BaseVerify,
-    IsFunction,
     IsLoop,
-    QualitativeCriteria,
     Verify,
     check_code_candidate,
     check_dangerous_ops,
     check_syntax,
+)
+from .extra_codecheck import (
+    IsFunction,
+    QualitativeCriteria,
 )
 from .codecost import (
     LOOP_MULTIPLIER,

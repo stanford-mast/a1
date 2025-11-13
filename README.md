@@ -78,6 +78,49 @@ asyncio.run(main())
 
 See the `tests/` directory for extensive examples of everything A1 can do. Docs coming soon to [docs.a1project.org](https://docs.a1project.org)
 
+## 📚 Examples
+
+### Router Configuration from JSON
+
+The `examples/router_config.py` demonstrates how to dynamically create tools from JSON schemas. This is useful when you have many commands (e.g., router CLI, database operations) defined in a configuration file:
+
+```python
+# Load command schemas from JSON
+with open("router_schema.json") as f:
+    commands = json.load(f)["commands"]
+
+# Create Tool objects dynamically
+tools = []
+for cmd_name, cmd_config in commands.items():
+    # Convert JSON schema to Pydantic model
+    InputModel = json_schema_to_pydantic(cmd_name, cmd_config["schema"])
+    
+    # Create Tool with schema
+    tool = Tool(
+        name=cmd_name,
+        description=cmd_config["description"],
+        input_schema=InputModel,
+        output_schema=CommandResult,
+        execute=lambda **kwargs: {...}
+    )
+    tools.append(tool)
+
+# Create agent with dynamic tools
+agent = Agent(
+    name="router_agent",
+    description="Configure Cisco router",
+    tools=tools + [LLM("gpt-4.1-mini"), Done()]
+)
+```
+
+Run the full example:
+```bash
+export OPENAI_API_KEY=your_key_here
+uv run python examples/router_config.py
+```
+
+This approach scales to thousands of commands while preserving Field validation (regex patterns, numeric bounds, etc.) from the JSON schema.
+
 ## ✨ Features
 
 * **Import** any Langchain agent

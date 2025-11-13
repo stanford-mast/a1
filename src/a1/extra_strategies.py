@@ -78,6 +78,7 @@ class ReduceAndGenerate(BaseGenerate):
         task: str,
         return_function: bool = False,
         past_attempts: list[tuple[str, str]] | None = None,
+        context: Any | None = None,
     ) -> tuple[str, str] | None:
         """
         Generate code with semantic tool filtering and enum reduction.
@@ -87,6 +88,7 @@ class ReduceAndGenerate(BaseGenerate):
             task: Task description or input data
             return_function: Whether to return function definition (AOT) or code block (JIT)
             past_attempts: Previous failed attempts as (code, error) tuples
+            context: Context for maintaining conversation history across retries
             
         Returns:
             Tuple of (definition_code, generated_code) or None if generation fails
@@ -250,7 +252,8 @@ class ReduceAndGenerate(BaseGenerate):
             agent=temp_agent,
             task=task,
             return_function=return_function,
-            past_attempts=past_attempts
+            past_attempts=past_attempts,
+            context=context,
         )
 
 

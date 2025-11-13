@@ -1,6 +1,6 @@
 """Tests for IsFunction verifier."""
 
-from a1.codecheck import IsFunction
+from a1.extra_codecheck import IsFunction
 
 
 class TestIsFunction:

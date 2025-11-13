@@ -135,7 +135,7 @@ class TestNestedSchemaGeneration:
         )
 
         # Generate definition code
-        gen = BaseGenerate(LLM("gpt-4.1"))
+        gen = BaseGenerate(LLM("gpt-4.1-mini"))
         def_code = gen._build_definition_code(agent, return_function=False)
 
         # Check that nested classes are generated
@@ -168,7 +168,7 @@ class TestNestedSchemaGeneration:
             name="test_agent", description="Test agent", input_schema=Input, output_schema=Output, tools=[tool]
         )
 
-        gen = BaseGenerate(LLM("gpt-4.1"))
+        gen = BaseGenerate(LLM("gpt-4.1-mini"))
         def_code = gen._build_definition_code(agent, return_function=False)
 
         # Check nested classes
@@ -372,7 +372,7 @@ class TestNestedSchemaEdgeCases:
             name="test_agent", description="Test agent", input_schema=Input, output_schema=Output, tools=[tool]
         )
 
-        gen = BaseGenerate(LLM("gpt-4.1"))
+        gen = BaseGenerate(LLM("gpt-4.1-mini"))
         def_code = gen._build_definition_code(agent, return_function=False)
 
         # Should generate the tool input schema and all nested levels
@@ -416,7 +416,7 @@ class TestNestedSchemaEdgeCases:
             name="test_agent", description="Test agent", input_schema=Input, output_schema=Output, tools=[tool]
         )
 
-        gen = BaseGenerate(LLM("gpt-4.1"))
+        gen = BaseGenerate(LLM("gpt-4.1-mini"))
         def_code = gen._build_definition_code(agent, return_function=False)
 
         # Should handle Optional nested types

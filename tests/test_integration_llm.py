@@ -69,7 +69,7 @@ def calculator_tool():
 @pytest.fixture
 def llm_tool():
     """Create LLM tool with Groq."""
-    return LLM("groq:openai/gpt-oss-20b")
+    return LLM("gpt-4.1-mini")
 
 
 # ============================================================================

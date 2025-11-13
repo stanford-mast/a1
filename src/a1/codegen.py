@@ -116,6 +116,7 @@ class Generate:
         task: str,
         return_function: bool = False,
         past_attempts: list[tuple[str, str]] | None = None,
+        context: Any | None = None,  # Context
     ) -> tuple[str, str] | None:
         """
         Generate a single code candidate.
@@ -125,6 +126,7 @@ class Generate:
             task: Task description (or function description for AOT)
             return_function: If True, generate a function definition. If False, generate code block.
             past_attempts: List of (candidate_code, validation_error) tuples for retry logic
+            context: Optional Context object to maintain conversation across retries
 
         Returns:
             Tuple of (definition_code, generated_code) where:
@@ -142,15 +144,19 @@ class BaseGenerate(Generate):
     Generates ONE candidate at a time. Runtime handles parallel generation.
 
     Args:
-        llm_tool: Tool to use for code generation (e.g., LLM("gpt-4"))
+        llm_tool: Tool to use for code generation (e.g., LLM("gpt-4.1-mini")). 
+                  Defaults to LLM("gpt-4.1-mini") if not provided.
         timezone: Timezone for timestamp context (default: "UTC")
     """
 
     def __init__(
         self,
-        llm_tool: Any,  # Tool
+        llm_tool: Any | None = None,  # Tool
         timezone: str = "UTC",
     ):
+        if llm_tool is None:
+            from .llm import LLM
+            llm_tool = LLM("gpt-4.1-mini")
         self.llm_tool = llm_tool
         self.timezone = timezone
 
@@ -160,18 +166,39 @@ class BaseGenerate(Generate):
         task: str,
         return_function: bool = False,
         past_attempts: list[tuple[str, str]] | None = None,
+        context: Any | None = None,  # Context
     ) -> tuple[str, str] | None:
-        """Generate a single code candidate using LLM, returning (definition_code, generated_code) tuple."""
+        """
+        Generate a single code candidate using LLM, returning (definition_code, generated_code) tuple.
+        
+        Uses Context to maintain conversation across retries:
+        - First call: system message + user message (definition code) 
+        - Retries: user message (error) → LLM tries to fix
+        - Each attempt: assistant message added with generated code
+        
+        Args:
+            agent: Agent with tools available
+            task: Task description (or function description for AOT)
+            return_function: If True, generate a function definition. If False, generate code block.
+            past_attempts: List of (candidate_code, validation_error) tuples for retry logic
+            context: Context object to maintain conversation across retries. Required.
+        
+        Returns:
+            Tuple of (definition_code, generated_code) or None if generation fails
+        """
+        if context is None:
+            raise ValueError("Context is required for code generation")
 
         # Build definition code
         definition_code = self._build_definition_code(agent, return_function=return_function, task=task)
 
-        # Build conversation history
-        conversation = []
-
-        # System message
-        examples = EXAMPLE_FUNCTION if return_function else EXAMPLE_CODE
-        system_msg = f"""You are an expert in writing Python code that calls tools.
+        # Check if this is the first attempt by seeing if context has messages
+        is_first_attempt = len(context.messages) == 0
+        
+        if is_first_attempt:
+            # First attempt: Add system message with examples
+            examples = EXAMPLE_FUNCTION if return_function else EXAMPLE_CODE
+            system_msg = f"""You are an expert in writing Python code that calls tools.
 <examples>
 Here are examples of good code to generate. Use them as reference but never copy them directly.
 {examples}
@@ -181,34 +208,19 @@ Generate completion of the given code block to implement the TASK.
 If an error is reported, fix the previously generated code accordingly.
 </instructions>
 """
-        conversation.append({"role": "system", "content": system_msg})
-
-        # Build prompt
-        prompt_parts = []
-
-        # Add timestamp
-        prompt_parts.extend(self._build_timestamp())
-
-        # If there are past attempts, show the error
-        if past_attempts:
-            last_code, last_error = past_attempts[-1]
-            prompt_parts.append(f"Previous attempt failed with error:\n{last_error}")
-            prompt_parts.append("")
-            prompt_parts.append("Please fix the code:")
-            prompt_parts.append("```python")
-            prompt_parts.append(last_code)
-            prompt_parts.append("```")
-        else:
-            # Initial generation - show definitions and ask for completion
+            context.system(system_msg)
+            
+            # Add user message with definition code
+            prompt_parts = []
+            prompt_parts.extend(self._build_timestamp())
+            
             if return_function:
-                # For AOT mode: show the function template WITHOUT closing backticks
-                # so the LLM continues writing the function body
+                # AOT mode: show function template
                 prompt_parts.append("```python")
                 prompt_parts.append(definition_code)
                 # DO NOT close backticks - leave open for LLM to continue
             else:
-                # For JIT mode: assign input values and leave code block open
-                # Parse task to get input values
+                # JIT mode: show definitions + input values
                 try:
                     input_values = json.loads(task)
                 except:
@@ -218,35 +230,42 @@ If an error is reported, fix the previously generated code accordingly.
                 prompt_parts.append(definition_code)
                 prompt_parts.append("")
                 for key, value in input_values.items():
-                    # Format value appropriately
                     if isinstance(value, str):
                         prompt_parts.append(f"{key} = {repr(value)}")
                     else:
                         prompt_parts.append(f"{key} = {value}")
                 prompt_parts.append("")
                 prompt_parts.append("# RESPOND WITH YOUR CODE HERE")
-                # DO NOT close backticks - leave open for LLM to continue
-            # Note: We deliberately leave it open - the LLM will generate code
+            
+            user_prompt = "\n".join(prompt_parts)
+            context.user(user_prompt)
+            
+        else:
+            # Retry attempt: Add user message with error from last attempt
+            if past_attempts:
+                last_code, last_error = past_attempts[-1]
+                error_prompt = f"Previous attempt failed with error:\n{last_error}\n\nPlease fix the code."
+                context.user(error_prompt)
 
-        prompt = "\n".join(prompt_parts)
-        conversation.append({"role": "user", "content": prompt})
+        # Log the current context
+        logger.info("=" * 80)
+        logger.info("CONTEXT MESSAGES FOR CODE GENERATION:")
+        logger.info("=" * 80)
+        for msg in context.messages:
+            content = msg.content if hasattr(msg, 'content') else str(msg)
+            content_preview = content[:200] + "..." if len(content) > 200 else content
+            role = msg.role if hasattr(msg, 'role') else 'unknown'
+            logger.info(f"{role.upper()}: {content_preview}")
+        logger.info("=" * 80)
 
-        # Log the full prompt for debugging
-        logger.info("=" * 80)
-        logger.info("PROMPT TO LLM FOR CODE GENERATION:")
-        logger.info("=" * 80)
-        logger.info(prompt)
-        logger.info("=" * 80)
-
-        # Call LLM
+        # Call LLM with the context
         try:
             logger.info(f"Generating code for task: {task[:100]}...")
-            # The LLM tool expects content
-            # We pass the conversation as a JSON string for code generation
-            messages_str = json.dumps(conversation)
-            result = await self.llm_tool(content=messages_str)
+            
+            # Use the LLM tool with the context
+            result = await self.llm_tool(content="", context=context)
 
-            # Extract response content - handle both string and LLMOutput
+            # Extract response content
             if isinstance(result, str):
                 completion = result
             elif hasattr(result, "content"):
@@ -262,11 +281,13 @@ If an error is reported, fix the previously generated code accordingly.
                 return None
 
             # For AOT mode, normalize indentation
-            # The LLM sometimes adds extra indentation thinking it's inside a function
             if return_function:
                 generated_code = normalize_generated_code(generated_code)
 
-            # Log the generated code for debugging
+            # Add assistant message with generated code to context
+            context.assistant(f"```python\n{generated_code}\n```")
+
+            # Log the generated code
             logger.info("=" * 80)
             logger.info("GENERATED CODE FROM LLM:")
             logger.info("=" * 80)

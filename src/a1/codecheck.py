@@ -170,6 +170,7 @@ class BaseVerify(Verify):
     - Syntax validity
     - No dangerous operations (eval, exec, subprocess, etc)
     - Type safety using ty (Rust-based type checker)
+    - Field constraint validation on constant tool inputs (compile-time validation)
     - Imports are allowed (they work fine in exec with proper state setup)
     """
 
@@ -210,7 +211,7 @@ class BaseVerify(Verify):
     }
 
     def verify(self, code, agent: Any) -> tuple[bool, str | None]:
-        """Verify code is syntactically valid, safe, and type-correct."""
+        """Verify code is syntactically valid, safe, type-correct, and respects Field constraints."""
         # Extract just the generated code for syntax checking
         generated_code = self._extract_code(code)
 
@@ -248,6 +249,12 @@ class BaseVerify(Verify):
                     if func_name in ["eval", "exec", "compile", "__import__"]:
                         return False, f"Dangerous function detected: {func_name}"
 
+        # Validate constant tool inputs against Field constraints (compile-time validation)
+        if agent and hasattr(agent, 'tools'):
+            is_valid, constraint_error = self._check_field_constraints(tree, agent)
+            if not is_valid:
+                return False, constraint_error
+
         # Run type checking on full code (definition + generated) if available
         full_code = self._extract_full_code(code)
         if full_code != generated_code:  # Only run if we have definition code
@@ -255,6 +262,100 @@ class BaseVerify(Verify):
             if not is_valid:
                 return False, f"Type checking failed: {type_error}"
 
+        return True, None
+    
+    def _check_field_constraints(self, tree: ast.AST, agent: Any) -> Tuple[bool, Optional[str]]:
+        """
+        Validate constant inputs to tool calls against Pydantic Field constraints.
+        
+        Checks compile-time knowable values (constants, attribute access on input schema, etc.)
+        against the tool's input schema Field validators (pattern, ge, le, min_length, etc.).
+        
+        Args:
+            tree: AST of generated code
+            agent: Agent instance with tools
+            
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        from pydantic import ValidationError
+        from .cfg_builder import ConstantExtractor
+        
+        # Build map of tool names to tool instances
+        tool_map = {}
+        if hasattr(agent, 'tools'):
+            for tool in agent.tools:
+                if hasattr(tool, 'name'):
+                    tool_map[tool.name] = tool
+        
+        # Create constant extractor with agent input schema
+        input_schema = getattr(agent, 'input_schema', None) if agent else None
+        extractor = ConstantExtractor(tree, input_schema)
+        
+        # Find all function calls in the code
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            
+            # Get function name
+            func_name = None
+            if isinstance(node.func, ast.Name):
+                func_name = node.func.id
+            elif isinstance(node.func, ast.Attribute):
+                func_name = node.func.attr
+            
+            if not func_name or func_name not in tool_map:
+                continue
+            
+            tool = tool_map[func_name]
+            
+            # Skip if tool has no input schema
+            if not hasattr(tool, 'input_schema') or not tool.input_schema:
+                continue
+            
+            # Extract constant keyword arguments
+            const_kwargs = {}
+            for keyword in node.keywords:
+                if keyword.arg is None:
+                    continue  # **kwargs
+                
+                # Try to extract constant value
+                const_value, is_const = extractor.extract_constant(keyword.value)
+                if is_const and not isinstance(const_value, tuple):
+                    # Skip marker tuples like ('__INPUT__', ...)
+                    const_kwargs[keyword.arg] = const_value
+            
+            # Also handle positional arguments if we can map them to parameter names
+            if hasattr(tool.input_schema, 'model_fields'):
+                param_names = list(tool.input_schema.model_fields.keys())
+                for i, arg in enumerate(node.args):
+                    if i < len(param_names):
+                        const_value, is_const = extractor.extract_constant(arg)
+                        if is_const and not isinstance(const_value, tuple):
+                            const_kwargs[param_names[i]] = const_value
+            
+            # If we have any constant arguments, validate them
+            if const_kwargs:
+                try:
+                    # Create partial instance to validate just the constant fields
+                    # This will trigger Field validators (pattern, ge, le, etc.)
+                    tool.input_schema(**const_kwargs)
+                except ValidationError as e:
+                    # Format error nicely
+                    errors = []
+                    for error in e.errors():
+                        field_path = '.'.join(str(x) for x in error['loc'])
+                        msg = error['msg']
+                        errors.append(f"{field_path}: {msg}")
+                    
+                    return False, (
+                        f"Tool '{func_name}' constant input validation failed:\n  " + 
+                        "\n  ".join(errors)
+                    )
+                except Exception as e:
+                    # Other validation errors (e.g., type mismatches)
+                    return False, f"Tool '{func_name}' constant input validation failed: {e}"
+        
         return True, None
     
     def _check_large_enums(self, agent: Any) -> Tuple[bool, Optional[str]]:
@@ -528,249 +629,10 @@ def check_dangerous_ops(code: str) -> tuple[bool, str | None]:
     return True, None
 
 
-class IsFunction(Verify):
-    """
-    Verify that code contains exactly one async function with correct signature.
-
-    Used by AOT mode to ensure generated code:
-    1. Contains exactly one async function (not a stub)
-    2. Function name matches agent.name
-    3. Parameters match agent.input_schema fields (names and order)
-    4. Return type matches agent.output_schema
-    5. No code exists outside the function definition
-
-    Args passed via kwargs:
-        agent: Agent instance with name, input_schema, output_schema
-    """
-
-    def verify(self, code, **kwargs) -> tuple[bool, str | None]:
-        """Check if code has exactly one async function with correct signature."""
-        # Extract agent from kwargs
-        agent = kwargs.get("agent")
-
-        # Extract just the generated code (not definition code)
-        generated_code = self._extract_code(code)
-
-        # Parse code
-        try:
-            tree = ast.parse(generated_code)
-        except SyntaxError as e:
-            return False, f"Syntax error: {e}"
-
-        # Find async function definitions at module level, excluding stubs
-        func_defs = []
-        for node in tree.body:
-            if isinstance(node, ast.AsyncFunctionDef):
-                # Check if it's a stub (raises NotImplementedError)
-                is_stub = False
-                for stmt in node.body:
-                    if isinstance(stmt, ast.Raise):
-                        if isinstance(stmt.exc, ast.Call):
-                            if isinstance(stmt.exc.func, ast.Name) and stmt.exc.func.id == "NotImplementedError":
-                                is_stub = True
-                                break
-
-                # Only count non-stub functions
-                if not is_stub:
-                    func_defs.append(node)
-
-        if len(func_defs) == 0:
-            return False, "No async function implementation found. AOT mode requires a function (stubs don't count)."
-
-        # Check that there's only one function definition
-        if len(func_defs) > 1:
-            func_names = [f.name for f in func_defs]
-            return False, f"Multiple function definitions found: {func_names}. AOT mode requires exactly one function."
-
-        # Get the single function
-        func_def = func_defs[0]
-
-        # Check that the function is async (should always be true here)
-        if not isinstance(func_def, ast.AsyncFunctionDef):
-            return False, "Function must be async (use 'async def')"
-
-        # Check that there's no code outside the function
-        non_func_nodes = [node for node in tree.body if not isinstance(node, ast.AsyncFunctionDef)]
-        # Allow imports at the top
-        non_import_nodes = [node for node in non_func_nodes if not isinstance(node, (ast.Import, ast.ImportFrom))]
-        if non_import_nodes:
-            return (
-                False,
-                "Found code outside the function definition. AOT mode requires ONLY the function, no extra code.",
-            )
-
-        # Extract metadata
-        func_name = func_def.name
-        func_args = [arg.arg for arg in func_def.args.args]
-
-        # Get return annotation if present
-        return_annotation = None
-        if func_def.returns:
-            if isinstance(func_def.returns, ast.Name):
-                return_annotation = func_def.returns.id
-            elif isinstance(func_def.returns, ast.Constant):
-                return_annotation = func_def.returns.value
-
-        # Log extracted metadata
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.debug(f"Function metadata - name: {func_name}, args: {func_args}, return: {return_annotation}")
-
-        # Validate against agent schema if provided
-        if agent:
-            # Validate function name
-            if func_name != agent.name:
-                return False, f"Function name '{func_name}' doesn't match agent name '{agent.name}'"
-
-            # Validate parameters match input schema
-            if hasattr(agent.input_schema, "model_fields"):
-                expected_params = list(agent.input_schema.model_fields.keys())
-                if func_args != expected_params:
-                    return False, f"Function parameters {func_args} don't match input schema fields {expected_params}"
-
-            # Validate return type matches output schema
-            if hasattr(agent.output_schema, "__name__"):
-                expected_return = agent.output_schema.__name__
-                if return_annotation != expected_return:
-                    return (
-                        False,
-                        f"Return type annotation '{return_annotation}' doesn't match output schema '{expected_return}'",
-                    )
-
-        return True, None
-
-
-class QualitativeCriteria(Verify):
-    """
-    LLM-based verification using natural language criteria.
-
-    Prompts an LLM to evaluate code against qualitative criteria (returns boolean).
-    Supports multiple samples with parallel execution and majority voting.
-
-    Args:
-        expression: Natural language criteria description (e.g., "Code is readable and well-structured")
-        llm: Tool instance for LLM calls (e.g., LLM("gpt-4.1-mini"))
-        num_samples: Number of parallel LLM calls to make (default: 1)
-        min_samples_for_aggregation: Minimum successful samples needed (default: 1)
-        min_pass: Minimum samples that must return True for overall True (default: 1)
-    """
-
-    def __init__(
-        self,
-        expression: str,
-        llm: Any,  # Tool
-        num_samples: int = 1,
-        min_samples_for_aggregation: int = 1,
-        min_pass: int = 1,
-    ):
-        self.expression = expression
-        self.llm = llm
-        self.num_samples = num_samples
-        self.min_samples_for_aggregation = min_samples_for_aggregation
-        self.min_pass = min_pass
-
-    def verify(self, code: str, agent: Any) -> tuple[bool, str | None]:
-        """
-        Verify code using LLM-based qualitative criteria with optional sampling.
-
-        Returns:
-            Tuple of (passes_criteria, error_message)
-        """
-        import asyncio
-
-        async def _verify_async():
-            # Create evaluation prompt
-            prompt = f"""Evaluate the following Python code against this criteria:
-
-Criteria: {self.expression}
-
-Code:
-```python
-{code}
-```
-
-Return ONLY "true" or "false" (lowercase, no quotes, no explanation).
-"""
-
-            # Run multiple samples in parallel if requested
-            if self.num_samples <= 1:
-                # Single sample
-                result = await self.llm(content=prompt)
-                # Handle both string and LLMOutput responses
-                if isinstance(result, str):
-                    response = result.strip().lower()
-                elif hasattr(result, "content"):
-                    response = (result.content or "").strip().lower()
-                else:
-                    response = result.get("content", "").strip().lower()
-
-                if response == "true":
-                    return True, None
-                elif response == "false":
-                    return False, f"Code does not meet criteria: {self.expression}"
-                else:
-                    return False, f"Invalid LLM response: {response}"
-
-            # Multiple samples - run in parallel
-            tasks = [self.llm(content=prompt) for _ in range(self.num_samples)]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-
-            # Parse results
-            valid_responses = []
-            for result in results:
-                if isinstance(result, Exception):
-                    continue
-                # Handle both string and LLMOutput responses
-                if isinstance(result, str):
-                    response = result.strip().lower()
-                elif hasattr(result, "content"):
-                    response = (result.content or "").strip().lower()
-                else:
-                    response = result.get("content", "").strip().lower()
-                if response in ("true", "false"):
-                    valid_responses.append(response == "true")
-
-            # Check if we have enough valid samples
-            if len(valid_responses) < self.min_samples_for_aggregation:
-                return (
-                    False,
-                    f"Insufficient valid LLM responses: {len(valid_responses)}/{self.min_samples_for_aggregation}",
-                )
-
-            # Count how many passed
-            num_passed = sum(valid_responses)
-
-            if num_passed >= self.min_pass:
-                return True, None
-            else:
-                return (
-                    False,
-                    f"Code failed criteria ({num_passed}/{len(valid_responses)} samples passed, need {self.min_pass}): {self.expression}",
-                )
-
-        # Run async verification - handle both sync and async contexts
-        try:
-            # Check if we're in an async context
-            loop = asyncio.get_running_loop()
-            # We are in an async context, so we need to await directly
-            # Create a new task and wait for it
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(asyncio.run, _verify_async())
-                return future.result()
-        except RuntimeError:
-            # No event loop running, use asyncio.run
-            return asyncio.run(_verify_async())
-
-
 __all__ = [
     "Verify",
     "BaseVerify",
-    "QualitativeCriteria",
     "IsLoop",
-    "IsFunction",
     "check_code_candidate",
     "check_syntax",
     "check_dangerous_ops",

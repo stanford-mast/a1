@@ -86,7 +86,7 @@ class Runtime:
         else:
             self.strategy = Strategy()  # Default strategy
 
-        self.generate = generate or BaseGenerate(llm_tool=LLM("groq:openai/gpt-oss-20b"))
+        self.generate = generate or BaseGenerate()  # Defaults to gpt-4.1-mini
         self.verify = verify if verify is not None else [BaseVerify()]
         # Handle verify as single item or list
         if not isinstance(self.verify, list):
@@ -330,6 +330,11 @@ class Runtime:
 
                 # Generate candidates in parallel with retries
                 async def generate_with_retries():
+                    # Create a codegen context for this candidate
+                    # This enables conversation continuity across retries
+                    from .context import Context
+                    codegen_context = Context()
+                    
                     past_attempts = []
                     for attempt in range(max_retries):
                         result = await generate.generate(
@@ -337,6 +342,7 @@ class Runtime:
                             task=agent.description,
                             return_function=True,  # AOT generates functions
                             past_attempts=past_attempts if attempt > 0 else None,
+                            context=codegen_context,  # Share context across retries
                         )
 
                         if not result:
@@ -529,6 +535,12 @@ class Runtime:
 
                 # Generate candidates in parallel with retries
                 async def generate_with_retries():
+                    # Create a FRESH codegen context for this candidate
+                    # Do NOT branch from attempt_context - that only has user task JSON
+                    # Code generation needs its own clean context
+                    from .context import Context
+                    codegen_context = Context()
+                    
                     past_attempts = []
                     for attempt in range(max_retries):
                         result = await generate.generate(
@@ -536,6 +548,7 @@ class Runtime:
                             task=json.dumps(input_dict),
                             return_function=False,  # JIT generates code blocks
                             past_attempts=past_attempts if attempt > 0 else None,
+                            context=codegen_context,  # Share context across retries
                         )
 
                         if not result:
@@ -878,13 +891,20 @@ class Runtime:
         """
         # Find LLM tool
         llm_tool = None
+        llm_tools = []
         for tool in agent.get_all_tools():
             if "llm" in tool.name.lower():
-                llm_tool = tool
-                break
+                llm_tools.append(tool)
+                if llm_tool is None:
+                    llm_tool = tool
 
         if not llm_tool:
             raise RuntimeError("No LLM tool found for loop template")
+
+        # Generate short name for LLM tool using the same mapping as codegen
+        from .codegen import generate_tool_names
+        tool_name_map = generate_tool_names(llm_tools)
+        llm_short_name = tool_name_map.get(llm_tool.name, llm_tool.name)
 
         # Get the output schema class name (e.g., "AgentOutput")
         output_schema_name = agent.output_schema.__name__ if hasattr(agent.output_schema, "__name__") else "Output"
@@ -911,7 +931,7 @@ instruction = f"Complete this task: {{input_str}}. When done, call the 'done' to
 # Call LLM with output_schema
 # The LLM tool loops internally until a terminal tool is called
 available_tools = {available_tools_line}
-output = await {llm_tool.name}(
+output = await {llm_short_name}(
     content=instruction,
     tools=available_tools,
     context=context,

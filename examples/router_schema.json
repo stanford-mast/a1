@@ -1,0 +1,164 @@
+{
+  "commands": {
+    "configure_interface": {
+      "description": "Configure an interface with IP address and VLAN",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "interface": {
+            "type": "string",
+            "pattern": "^(Gi|Te|Fa)\\d+/\\d+(/\\d+)?$",
+            "description": "Interface name (e.g., Gi1/0/1, Te0/1, Fa0/0)"
+          },
+          "ip_address": {
+            "type": "string",
+            "pattern": "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
+            "description": "IPv4 address"
+          },
+          "subnet_mask": {
+            "type": "string",
+            "pattern": "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
+            "description": "Subnet mask"
+          },
+          "vlan": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4094,
+            "description": "VLAN ID (1-4094)"
+          }
+        },
+        "required": ["interface", "vlan"]
+      },
+      "dependencies": ["configure_vlan"]
+    },
+    
+    "configure_vlan": {
+      "description": "Create and configure a VLAN",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "vlan_id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4094,
+            "description": "VLAN ID (1-4094)"
+          },
+          "name": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "minLength": 1,
+            "maxLength": 32,
+            "description": "VLAN name (alphanumeric, underscore, dash)"
+          }
+        },
+        "required": ["vlan_id"]
+      },
+      "dependencies": []
+    },
+    
+    "configure_ospf": {
+      "description": "Configure OSPF routing protocol",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "process_id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "description": "OSPF process ID"
+          },
+          "area": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295,
+            "description": "OSPF area ID"
+          },
+          "network": {
+            "type": "string",
+            "pattern": "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
+            "description": "Network address"
+          },
+          "wildcard": {
+            "type": "string",
+            "pattern": "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
+            "description": "Wildcard mask"
+          }
+        },
+        "required": ["process_id", "area", "network", "wildcard"]
+      },
+      "dependencies": ["configure_interface"]
+    },
+    
+    "configure_acl": {
+      "description": "Configure access control list",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "acl_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2699,
+            "description": "ACL number (1-99 standard, 100-199 extended, etc.)"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["permit", "deny"],
+            "description": "ACL action"
+          },
+          "protocol": {
+            "type": "string",
+            "enum": ["ip", "tcp", "udp", "icmp", "any"],
+            "description": "Protocol type"
+          },
+          "source": {
+            "type": "string",
+            "pattern": "^(any|host \\S+|((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))$",
+            "description": "Source address (any, host X.X.X.X, or X.X.X.X)"
+          },
+          "destination": {
+            "type": "string",
+            "pattern": "^(any|host \\S+|((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))$",
+            "description": "Destination address (any, host X.X.X.X, or X.X.X.X)"
+          }
+        },
+        "required": ["acl_number", "action", "protocol", "source", "destination"]
+      },
+      "dependencies": []
+    },
+    
+    "configure_trunk": {
+      "description": "Configure interface as 802.1Q trunk",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "interface": {
+            "type": "string",
+            "pattern": "^(Gi|Te|Fa)\\d+/\\d+(/\\d+)?$",
+            "description": "Interface name"
+          },
+          "native_vlan": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4094,
+            "description": "Native VLAN for untagged traffic"
+          },
+          "allowed_vlans": {
+            "type": "string",
+            "pattern": "^(\\d+(-\\d+)?(,\\d+(-\\d+)?)*|all)$",
+            "description": "Allowed VLANs (e.g., '1-10,20,30-40' or 'all')"
+          }
+        },
+        "required": ["interface", "native_vlan"]
+      },
+      "dependencies": ["configure_interface", "configure_vlan"]
+    }
+  },
+  
+  "dependency_graph": {
+    "configure_interface": ["configure_vlan"],
+    "configure_ospf": ["configure_interface"],
+    "configure_trunk": ["configure_interface", "configure_vlan"],
+    "configure_vlan": [],
+    "configure_acl": []
+  }
+}

@@ -1,7 +1,7 @@
 [project]
 name = "a1-compiler"
-version = "0.1.4"
-description = "A modern agent compiler for building and executing LLM-powered agents"
+version = "0.1.5"
+description = "An optimizing agent-to-code compiler"
 readme = "README.md"
 authors = [
     { name = "Caleb Winston", email = "calebhwin@gmail.com" }
@@ -23,6 +23,7 @@ dependencies = [
     "opentelemetry-sdk>=1.20.0",
     "fsspec>=2024.0.0",
     "sqlalchemy>=2.0.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]

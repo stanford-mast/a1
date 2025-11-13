@@ -107,7 +107,7 @@ async def test_runtime_execute_simple_tool(calculator_tool):
 async def test_runtime_execute_llm_tool(calculator_tool):
     """Test Runtime.execute with LLM tool."""
     runtime = Runtime()
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
     ctx = get_context("llm_execute_test")
 
     # Execute LLM with tools
@@ -138,7 +138,7 @@ async def test_runtime_jit_simple_agent(calculator_tool):
     """Test Runtime.jit with a simple agent."""
     runtime = Runtime()
     set_runtime(runtime)
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     # Create agent with proper Pydantic models
     InputSchema = create_model("Input", query=(str, Field(..., description="The calculation query")))
@@ -179,7 +179,7 @@ async def test_runtime_aot_with_isloop(calculator_tool, temp_cache_dir):
 
     runtime = Runtime(verify=[IsLoop()])
     set_runtime(runtime)
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     # Create agent with proper Pydantic models
     InputSchema = create_model("Input", task=(str, Field(..., description="The task to perform")))
@@ -223,7 +223,7 @@ async def test_runtime_aot_without_isloop(calculator_tool, temp_cache_dir):
     # Check BaseGenerate signature - it might not take llm parameter
     set_runtime(runtime)
 
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     # Create simple agent
     InputSchema = create_model(
@@ -260,7 +260,7 @@ async def test_runtime_aot_with_caching(calculator_tool, temp_cache_dir):
     runtime = Runtime(cache_dir=temp_cache_dir)
     runtime.verify = [IsLoop()]
     set_runtime(runtime)
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     InputSchema = create_model("Input", query=(str, Field(..., description="The query")))
     OutputSchema = create_model("Output", answer=(str, Field(..., description="The answer")))
@@ -299,7 +299,7 @@ async def test_context_parameter_in_generated_code(calculator_tool, temp_cache_d
     runtime = Runtime(cache_dir=temp_cache_dir)
     runtime.verify = [IsLoop()]
     set_runtime(runtime)
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     InputSchema = create_model("Input", task=(str, Field(..., description="The task")))
     OutputSchema = create_model("Output", result=(str, Field(..., description="The result")))
@@ -343,7 +343,7 @@ async def test_agent_aot_and_jit_convenience_methods(calculator_tool, temp_cache
     runtime.verify = [IsLoop()]
     set_runtime(runtime)
 
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     InputSchema = create_model("Input", x=(int, Field(..., description="Number to process")))
     OutputSchema = create_model("Output", result=(int, Field(..., description="Processed number")))
@@ -386,7 +386,7 @@ async def test_tool_execute_convenience_method(calculator_tool):
 async def test_runtime_context_manager(calculator_tool):
     """Test using Runtime as a context manager."""
     with Runtime() as runtime:
-        llm_tool = LLM("groq:openai/gpt-oss-20b")
+        llm_tool = LLM("gpt-4.1-mini")
 
         # Should be able to execute within context
         result = await runtime.execute(calculator_tool, a=7, b=8, operation="add")
@@ -401,7 +401,7 @@ async def test_runtime_context_manager(calculator_tool):
 async def test_multiple_contexts_isolation():
     """Test that different context keys maintain message isolation."""
     runtime = Runtime()
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     # Create two separate contexts
     ctx1 = get_context("context_1")
@@ -443,7 +443,7 @@ async def test_jit_multiple_calls_accumulate_context(calculator_tool):
     """
     runtime = Runtime()
     set_runtime(runtime)
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     # Create agent
     InputSchema = create_model("Input", query=(str, Field(..., description="Math query")))
@@ -510,7 +510,7 @@ async def test_jit_generated_code_calls_llm_with_tools(calculator_tool):
     """
     runtime = Runtime()
     set_runtime(runtime)
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     InputSchema = create_model("Input", task=(str, Field(..., description="Task for LLM to solve")))
     OutputSchema = create_model("Output", result=(str, Field(..., description="Final result")))
@@ -552,7 +552,7 @@ async def test_aot_generated_function_calls_llm_with_tools(calculator_tool):
     """
     runtime = Runtime()
     set_runtime(runtime)
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     InputSchema = create_model("Input", problem=(str, Field(..., description="Math problem")))
     OutputSchema = create_model("Output", answer=(str, Field(..., description="The answer")))
@@ -595,7 +595,7 @@ async def test_output_schema_transformations(calculator_tool):
     """
     runtime = Runtime()
     set_runtime(runtime)
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     # Case 1: Single-field schema should auto-wrap
     InputSchema1 = create_model("Input1", value=(str, Field(..., description="Input value")))
@@ -633,7 +633,7 @@ async def test_input_schema_validation(calculator_tool):
     """
     runtime = Runtime()
     set_runtime(runtime)
-    llm_tool = LLM("groq:openai/gpt-oss-20b")
+    llm_tool = LLM("gpt-4.1-mini")
 
     InputSchema = create_model("Input", count=(int, Field(..., description="A number")))
     OutputSchema = create_model("Output", result=(str, Field(..., description="Result")))

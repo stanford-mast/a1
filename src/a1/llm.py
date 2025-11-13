@@ -182,6 +182,9 @@ def LLM(
     if retry_strategy is None:
         retry_strategy = RetryStrategy(max_iterations=3, num_candidates=3)
 
+    # Apply default output schema and capture it before the execute parameter shadows it
+    tool_output_schema = output_schema or LLMOutput
+
     async def execute(
         content: str,
         tools: list[Tool] | None = None,
@@ -237,9 +240,12 @@ def LLM(
         import re
 
         # Determine the target output schema (passed to Done tool if needed)
-        target_output_schema = output_schema
+        # Use the output_schema parameter if provided, otherwise fall back to the tool's declared output_schema
+        target_output_schema = output_schema if output_schema is not None else tool_output_schema
         logger.info(
-            f"LLM execute: output_schema param = {output_schema.__name__ if output_schema else 'None'}, target = {target_output_schema.__name__ if target_output_schema else 'None'}"
+            f"LLM execute: output_schema param = {output_schema.__name__ if output_schema else 'None'}, "
+            f"tool_output_schema = {tool_output_schema.__name__ if tool_output_schema else 'None'}, "
+            f"target = {target_output_schema.__name__ if target_output_schema else 'None'}"
         )
 
         # Use provided context or create new tracked context
@@ -621,8 +627,11 @@ def LLM(
                 # No tool calls - exit loop
                 break
 
-        # Return based on output_schema or response content
-        if output_schema and output_schema != LLMOutput:
+        # Return based on target_output_schema or response content
+        # Use target_output_schema which incorporates both the parameter and the tool's default
+        # Special case: if no output_schema was passed AND tool default is LLMOutput, return raw string
+        # This allows generated code to call llm("question") and get back a string
+        if target_output_schema and not (output_schema is None and target_output_schema == LLMOutput):
             # Get retry settings from retry_strategy (should always be set with defaults now)
             max_iterations = retry_strategy.max_iterations if retry_strategy else 3
             num_candidates = retry_strategy.num_candidates if retry_strategy else 3
@@ -636,13 +645,13 @@ def LLM(
                     # First try parsing as JSON
                     parsed_data = json.loads(response_text)
                     if isinstance(parsed_data, dict):
-                        result = output_schema(**parsed_data)
+                        result = target_output_schema(**parsed_data)
                         logger.info(f"Candidate {candidate_idx} iteration {iteration}: Successfully validated")
                         return result
                     else:
                         # If JSON is a primitive, wrap it in the schema
-                        field_name = list(output_schema.model_fields.keys())[0]
-                        result = output_schema(**{field_name: parsed_data})
+                        field_name = list(target_output_schema.model_fields.keys())[0]
+                        result = target_output_schema(**{field_name: parsed_data})
                         logger.info(
                             f"Candidate {candidate_idx} iteration {iteration}: Successfully validated (wrapped)"
                         )
@@ -651,8 +660,8 @@ def LLM(
                     # If JSON parsing fails, try wrapping the content directly
                     logger.debug(f"Candidate {candidate_idx} iteration {iteration}: JSON parse failed: {e}")
                     try:
-                        field_name = list(output_schema.model_fields.keys())[0]
-                        result = output_schema(**{field_name: response_text})
+                        field_name = list(target_output_schema.model_fields.keys())[0]
+                        result = target_output_schema(**{field_name: response_text})
                         logger.info(
                             f"Candidate {candidate_idx} iteration {iteration}: Successfully validated (direct wrap)"
                         )
@@ -682,7 +691,7 @@ def LLM(
                         retry_messages.append(
                             {
                                 "role": "user",
-                                "content": f"Your previous response could not be validated. Please respond with valid JSON matching this exact schema: {output_schema.model_json_schema()}",
+                                "content": f"Your previous response could not be validated. Please respond with valid JSON matching this exact schema: {target_output_schema.model_json_schema()}",
                             }
                         )
 
@@ -740,14 +749,23 @@ def LLM(
             )
             return response_content
         else:
-            # Default: return string content
+            # No output_schema requested - return string content
+            # Special case: if response is in LLMOutput format (from response_format), extract content field
+            if response_content and isinstance(response_content, str):
+                try:
+                    parsed = json.loads(response_content)
+                    if isinstance(parsed, dict) and "content" in parsed and len(parsed) == 1:
+                        # This is LLMOutput format - extract the content field
+                        return parsed["content"]
+                except (json.JSONDecodeError, KeyError):
+                    pass
             return response_content
 
     return Tool(
-        name=f"llm_{model.replace(':', '_').replace('-', '_').replace('/', '_')}",
+        name=f"llm_{model.replace(':', '_').replace('-', '_').replace('/', '_').replace('.', '_')}",
         description=f"Call {model} language model with function calling support",
         input_schema=input_schema or LLMInput,
-        output_schema=output_schema or LLMOutput,
+        output_schema=tool_output_schema,  # Use the already-computed default
         execute=execute,
         is_terminal=False,
     )

@@ -82,7 +82,7 @@ df.to_csv('output.csv', index=False)
             skills=[pandas_skill],
         )
 
-        gen = BaseGenerate(LLM("gpt-4.1"))
+        gen = BaseGenerate(LLM("gpt-4.1-mini"))
         def_code = gen._build_definition_code(agent, return_function=False)
 
         # Check that skill content is in definition code
@@ -114,7 +114,7 @@ df.to_csv('output.csv', index=False)
             skills=[pandas_skill],
         )
 
-        gen = BaseGenerate(LLM("gpt-4.1"))
+        gen = BaseGenerate(LLM("gpt-4.1-mini"))
         def_code = gen._build_definition_code(agent, return_function=False)
 
         # Check that modules are imported
@@ -181,7 +181,7 @@ df.to_csv('output.csv', index=False)
             name="agent", description="Test agent", input_schema=Input, output_schema=Output, skills=[skillset]
         )
 
-        gen = BaseGenerate(LLM("gpt-4.1"))
+        gen = BaseGenerate(LLM("gpt-4.1-mini"))
         def_code = gen._build_definition_code(agent, return_function=False)
 
         # Check both skills appear in output
@@ -241,7 +241,7 @@ df.to_csv('output.csv', index=False)
         assert len(agent.tools) == 1
         assert len(agent.skills) == 1
 
-        gen = BaseGenerate(LLM("gpt-4.1"))
+        gen = BaseGenerate(LLM("gpt-4.1-mini"))
         def_code = gen._build_definition_code(agent, return_function=False)
 
         # Check both tool and skill appear
@@ -306,7 +306,7 @@ df.to_csv('output.csv', index=False)
             skills=[pandas_csv_skill],
         )
 
-        gen = BaseGenerate(LLM("gpt-4.1"))
+        gen = BaseGenerate(LLM("gpt-4.1-mini"))
         def_code = gen._build_definition_code(agent, return_function=False)
 
         # Verify skill content is accessible in definition code
