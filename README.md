@@ -24,10 +24,10 @@ pip install a1-compiler
 
 An agent compiler is a direct replacement for agent frameworks such as Langchain or aisdk, where you define an `Agent` and run. The diference is:
 
-1. **Safety:** A1 generates code for each unique agent input, optimizing constantly to shrink the prompt injection attack surface. 
-2. **Speed:** A1 makes codegen practical for tool-wielding agents with aggressive parallelism and static checking.
-3. **Determinism:** A1 optimizes for determinism via an engineered cost function. For example, it may replace an LLM call with a fast RegEx but may revert on-the-fly if a tool's schema evolves.
-4. **Flexibility** A tool in A1 can be instantly constructed from an OpenAPI document, an MCP server, a DB connection string, an fsspec path, a Python function, a Python package, or even just a documentation website URL.
+1. **Safety** - Minimizes exposure of sensitive data to an LLM.
+2. **Speed** - Up to 10x faster code generation.
+3. **Determinism** - Code is optimized for minimal non-deterministic behavior (e.g. LLM calls replaced with code where possible).
+4. **Flexibility** - Skills and Tools from any existing OpenAPI, MCP server, databases, fsspec paths, Python functions
 
 Agent compilers emerged from frustration with the MCP protocol and SOTA agent frameworks where every agent runs a static while loop program. Slow, unsafe, and highly nondeterministic. 
 
@@ -77,49 +77,6 @@ asyncio.run(main())
 ```
 
 See the `tests/` directory for extensive examples of everything A1 can do. Docs coming soon to [docs.a1project.org](https://docs.a1project.org)
-
-## 📚 Examples
-
-### Router Configuration from JSON
-
-The `examples/router_config.py` demonstrates how to dynamically create tools from JSON schemas. This is useful when you have many commands (e.g., router CLI, database operations) defined in a configuration file:
-
-```python
-# Load command schemas from JSON
-with open("router_schema.json") as f:
-    commands = json.load(f)["commands"]
-
-# Create Tool objects dynamically
-tools = []
-for cmd_name, cmd_config in commands.items():
-    # Convert JSON schema to Pydantic model
-    InputModel = json_schema_to_pydantic(cmd_name, cmd_config["schema"])
-    
-    # Create Tool with schema
-    tool = Tool(
-        name=cmd_name,
-        description=cmd_config["description"],
-        input_schema=InputModel,
-        output_schema=CommandResult,
-        execute=lambda **kwargs: {...}
-    )
-    tools.append(tool)
-
-# Create agent with dynamic tools
-agent = Agent(
-    name="router_agent",
-    description="Configure Cisco router",
-    tools=tools + [LLM("gpt-4.1-mini"), Done()]
-)
-```
-
-Run the full example:
-```bash
-export OPENAI_API_KEY=your_key_here
-uv run python examples/router_config.py
-```
-
-This approach scales to thousands of commands while preserving Field validation (regex patterns, numeric bounds, etc.) from the JSON schema.
 
 ## ✨ Features
 

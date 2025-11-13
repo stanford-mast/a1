@@ -14,8 +14,8 @@ from pydantic import BaseModel, Field
 
 from a1 import LLM, Agent, Runtime, Tool
 
-# Load environment variables from .env file
-load_dotenv(Path(__file__).parent.parent / ".env")
+# Load environment variables from .env file in the repository root
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 # Enable logging to see generated code
 logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")

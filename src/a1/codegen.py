@@ -235,7 +235,7 @@ If an error is reported, fix the previously generated code accordingly.
                     else:
                         prompt_parts.append(f"{key} = {value}")
                 prompt_parts.append("")
-                prompt_parts.append("# RESPOND WITH YOUR CODE HERE")
+                prompt_parts.append("# RESPOND WITH ONLY YOUR CODE TO ADD AFTER THIS")
             
             user_prompt = "\n".join(prompt_parts)
             context.user(user_prompt)
@@ -640,7 +640,7 @@ If an error is reported, fix the previously generated code accordingly.
                 lines.append(f"    {agent.description}")
                 lines.append('    """')
             lines.append(f"    # TASK: {task}")
-            lines.append("    # RESPOND WITH ONLY YOUR CODE HERE")
+            lines.append("    # RESPOND WITH ONLY YOUR CODE TO PUT IN THIS FUNCTION")
 
         return "\n".join(lines)
 

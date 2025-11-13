@@ -5,8 +5,23 @@ Demonstrates loading command schemas from JSON and creating a1 tools dynamically
 This example shows the simplest approach: iterate through JSON, create Pydantic models
 and tools, then let the agent figure out the rest.
 
-Run with: uv run python examples/router_config.py
+Run with: uv run python examples/router_config/router_config.py
 """
+
+import asyncio
+import json
+from pathlib import Path
+from typing import Any
+
+from dotenv import load_dotenv
+from pydantic import BaseModel, Field, create_model
+
+from a1 import Agent, Done, EM, LLM, Runtime, Tool, Strategy
+from a1.strategies import BaseGenerate
+from a1.extra_strategies import CheckOrdering, ReduceAndGenerate
+
+# Load environment variables from .env file in the repository root
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 import asyncio
 import json

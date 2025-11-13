@@ -18,14 +18,15 @@ Run with: uv run python examples/z3_reasoning.py
 
 import asyncio
 import logging
+from pathlib import Path
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
 from a1 import Agent, LLM, Runtime, Skill
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file in the repository root
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 # Configure logging to see what's happening
 logging.basicConfig(
