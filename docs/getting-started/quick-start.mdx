@@ -36,7 +36,13 @@ agent = Agent(
 
 async def main():
     # Compile ahead-of-time
-    compiled = await agent.aot()
+    compiled = await agent.aot(
+      strategy=Strategy(
+        generate=BaseGenerate(
+          llm_tool=LLM(model="gpt-4.1"),
+        )
+      )
+    )
     result = await compiled.execute(problem="What is 2 + 2?")
     print(f"AOT result: {result}")
 
