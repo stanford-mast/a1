@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from pydantic import BaseModel, Field
+import pytest
 
 # Load environment variables
 env_path = Path(__file__).parent / ".env"
@@ -73,6 +74,7 @@ class PersonGreetingOutput(BaseModel):
     result: GreetingResponse
 
 
+@pytest.mark.skipif(not os.environ.get("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
 async def test_primitive_int():
     """Test that primitive int return types work correctly."""
     print("\n--- Testing Primitive Int Return Type ---")
@@ -90,6 +92,7 @@ async def test_primitive_int():
     return True
 
 
+@pytest.mark.skipif(not os.environ.get("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
 async def test_primitive_string():
     """Test that primitive string return types work correctly."""
     print("\n--- Testing Primitive String Return Type ---")
@@ -114,6 +117,7 @@ async def test_primitive_string():
     return True
 
 
+@pytest.mark.skipif(not os.environ.get("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
 async def test_primitive_bool():
     """Test that primitive bool return types work correctly."""
     print("\n--- Testing Primitive Bool Return Type ---")
@@ -138,6 +142,7 @@ async def test_primitive_bool():
     return True
 
 
+@pytest.mark.skipif(not os.environ.get("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
 async def test_complex_pydantic():
     """Test that complex Pydantic types work correctly."""
     print("\n--- Testing Complex Pydantic Return Type ---")
@@ -156,6 +161,7 @@ async def test_complex_pydantic():
     return True
 
 
+@pytest.mark.skipif(not os.environ.get("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
 async def test_tool_execution():
     """Test that tools execute correctly with their actual return types."""
     print("\n--- Testing Direct Tool Execution ---")

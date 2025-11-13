@@ -1,5 +1,6 @@
 """Test Strategy field configuration and usage."""
 
+import os
 import pytest
 from pydantic import BaseModel
 
@@ -121,6 +122,7 @@ class TestStrategyInAOTJIT:
     """Test Strategy parameter in aot() and jit() calls."""
 
     @pytest.mark.asyncio
+    @pytest.mark.skipif(not os.environ.get("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
     async def test_aot_accepts_strategy_parameter(self):
         """Test aot() accepts strategy parameter."""
         agent = Agent(

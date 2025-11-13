@@ -5,6 +5,7 @@ This verifies that the compiler fails at AOT time (not runtime) if:
 - Agent has large enum (>100 values) in input/output/tool schemas
 - EM tool is not available in agent tools
 """
+import os
 import pytest
 import asyncio
 from enum import Enum
@@ -44,6 +45,7 @@ class SimpleOutput(BaseModel):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not os.environ.get("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
 async def test_large_enum_without_em_fails():
     """Test that agent with large enum but no EM tool fails compilation."""
     agent = Agent(
@@ -66,6 +68,7 @@ async def test_large_enum_without_em_fails():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not os.environ.get("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
 async def test_large_enum_with_em_succeeds():
     """Test that agent with large enum AND EM tool succeeds compilation."""
     agent = Agent(
@@ -84,6 +87,7 @@ async def test_large_enum_with_em_succeeds():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not os.environ.get("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
 async def test_small_enum_without_em_succeeds():
     """Test that agent with small enum (<100 values) succeeds without EM."""
     # Create small enum (50 values)

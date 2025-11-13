@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from pydantic import BaseModel
+import pytest
 
 # Load environment variables
 env_path = Path(__file__).parent.parent / ".env"
@@ -45,6 +46,7 @@ agent = Agent(
 )
 
 
+@pytest.mark.skipif(not os.environ.get("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
 async def test_aot_compilation():
     """Test AOT compilation works with primitive return types."""
     print("\n--- Testing AOT Compilation ---")
@@ -58,6 +60,7 @@ async def test_aot_compilation():
     return True
 
 
+@pytest.mark.skipif(not os.environ.get("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
 async def test_jit_execution():
     """Test JIT execution works with primitive return types and simple input."""
     print("\n--- Testing JIT Execution ---")
