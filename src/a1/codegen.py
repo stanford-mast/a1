@@ -8,7 +8,10 @@ Runtime orchestrates parallel generation, validation, and ranking.
 import json
 import logging
 import re
-from typing import Any
+import types
+from typing import Any, Union, get_args, get_origin
+
+from pydantic import BaseModel
 
 from .code_utils import generate_nested_pydantic_classes, normalize_generated_code
 
@@ -144,7 +147,7 @@ class BaseGenerate(Generate):
     Generates ONE candidate at a time. Runtime handles parallel generation.
 
     Args:
-        llm_tool: Tool to use for code generation (e.g., LLM("gpt-4.1-mini")). 
+        llm_tool: Tool to use for code generation (e.g., LLM("gpt-4.1-mini")).
                   Defaults to LLM("gpt-4.1-mini") if not provided.
         timezone: Timezone for timestamp context (default: "UTC")
     """
@@ -156,6 +159,7 @@ class BaseGenerate(Generate):
     ):
         if llm_tool is None:
             from .llm import LLM
+
             llm_tool = LLM("gpt-4.1-mini")
         self.llm_tool = llm_tool
         self.timezone = timezone
@@ -170,19 +174,19 @@ class BaseGenerate(Generate):
     ) -> tuple[str, str] | None:
         """
         Generate a single code candidate using LLM, returning (definition_code, generated_code) tuple.
-        
+
         Uses Context to maintain conversation across retries:
-        - First call: system message + user message (definition code) 
+        - First call: system message + user message (definition code)
         - Retries: user message (error) → LLM tries to fix
         - Each attempt: assistant message added with generated code
-        
+
         Args:
             agent: Agent with tools available
             task: Task description (or function description for AOT)
             return_function: If True, generate a function definition. If False, generate code block.
             past_attempts: List of (candidate_code, validation_error) tuples for retry logic
             context: Context object to maintain conversation across retries. Required.
-        
+
         Returns:
             Tuple of (definition_code, generated_code) or None if generation fails
         """
@@ -194,7 +198,7 @@ class BaseGenerate(Generate):
 
         # Check if this is the first attempt by seeing if context has messages
         is_first_attempt = len(context.messages) == 0
-        
+
         if is_first_attempt:
             # First attempt: Add system message with examples
             examples = EXAMPLE_FUNCTION if return_function else EXAMPLE_CODE
@@ -209,11 +213,11 @@ If an error is reported, fix the previously generated code accordingly.
 </instructions>
 """
             context.system(system_msg)
-            
+
             # Add user message with definition code
             prompt_parts = []
             prompt_parts.extend(self._build_timestamp())
-            
+
             if return_function:
                 # AOT mode: show function template
                 prompt_parts.append("```python")
@@ -223,7 +227,7 @@ If an error is reported, fix the previously generated code accordingly.
                 # JIT mode: show definitions + input values
                 try:
                     input_values = json.loads(task)
-                except:
+                except Exception:
                     input_values = {}
 
                 prompt_parts.append("```python")
@@ -236,10 +240,10 @@ If an error is reported, fix the previously generated code accordingly.
                         prompt_parts.append(f"{key} = {value}")
                 prompt_parts.append("")
                 prompt_parts.append("# RESPOND WITH ONLY YOUR CODE TO ADD AFTER THIS")
-            
+
             user_prompt = "\n".join(prompt_parts)
             context.user(user_prompt)
-            
+
         else:
             # Retry attempt: Add user message with error from last attempt
             if past_attempts:
@@ -252,16 +256,16 @@ If an error is reported, fix the previously generated code accordingly.
         logger.info("CONTEXT MESSAGES FOR CODE GENERATION:")
         logger.info("=" * 80)
         for msg in context.messages:
-            content = msg.content if hasattr(msg, 'content') else str(msg)
+            content = msg.content if hasattr(msg, "content") else str(msg)
             content_preview = content[:200] + "..." if len(content) > 200 else content
-            role = msg.role if hasattr(msg, 'role') else 'unknown'
+            role = msg.role if hasattr(msg, "role") else "unknown"
             logger.info(f"{role.upper()}: {content_preview}")
         logger.info("=" * 80)
 
         # Call LLM with the context
         try:
             logger.info(f"Generating code for task: {task[:100]}...")
-            
+
             # Use the LLM tool with the context
             result = await self.llm_tool(content="", context=context)
 
@@ -303,6 +307,7 @@ If an error is reported, fix the previously generated code accordingly.
     def _build_definition_code(self, agent: Any, return_function: bool = False, task: str = "") -> str:
         """Build definition code showing tool signatures and agent schemas."""
         import copy
+
         lines = []
 
         # IMPORTANT: Keep imports in definition_code so LLM can reference them.
@@ -365,7 +370,7 @@ If an error is reported, fix the previously generated code accordingly.
                 # We sanitize schemas for the definition_code to avoid huge enums being inlined
                 def_schema = None
                 try:
-                    if hasattr(agent.input_schema, 'model_json_schema'):
+                    if hasattr(agent.input_schema, "model_json_schema"):
                         def_schema = agent.input_schema.model_json_schema()
                 except Exception:
                     def_schema = None
@@ -373,6 +378,7 @@ If an error is reported, fix the previously generated code accordingly.
                 # If we have a JSON schema, de-enum any property with >100 options
                 if def_schema:
                     from .schema_utils import de_enum_large_enums
+
                     def_schema = copy.deepcopy(def_schema)
                     de_enum_large_enums(def_schema, threshold=100)
 
@@ -552,8 +558,10 @@ If an error is reported, fix the previously generated code accordingly.
                 out_schema = None
 
             if out_schema:
-                from .schema_utils import de_enum_large_enums
                 import copy
+
+                from .schema_utils import de_enum_large_enums
+
                 out_schema = copy.deepcopy(out_schema)
                 de_enum_large_enums(out_schema, threshold=100)
 
@@ -651,9 +659,6 @@ If an error is reported, fix the previously generated code accordingly.
         Recursively extracts any nested BaseModel classes referenced by the schema
         and adds their definitions to the lines list.
         """
-        from pydantic import BaseModel
-        from typing import get_origin, get_args, Union
-
         if not (isinstance(schema_class, type) and issubclass(schema_class, BaseModel)):
             return
 
@@ -671,23 +676,18 @@ If an error is reported, fix the previously generated code accordingly.
                 for field_name, field_info in model_class.model_fields.items():
                     field_type = field_info.annotation
 
-                    # Handle Optional/Union types using get_origin and get_args
-                    origin = get_origin(field_type)
-                    if origin is Union or str(type(field_type).__name__) == 'UnionType':
-                        # For Optional[X] or Union[X, ...], get the non-None type
-                        args = get_args(field_type)
-                        if args:
-                            for arg in args:
-                                if arg is not type(None):
-                                    field_type = arg
-                                    break
-
-                    # Handle List[X] and other generic types
+                    # Use get_origin and get_args together to handle Union and generic types
                     origin = get_origin(field_type)
                     if origin is not None:
                         args = get_args(field_type)
                         if args:
-                            field_type = args[0]
+                            # Handle Union/Optional types (both typing.Union and types.UnionType from X | Y)
+                            if origin is Union or origin is types.UnionType:
+                                # For Optional[X] or Union[X, ...], get the non-None type
+                                field_type = next(arg for arg in args if arg is not type(None))
+                            else:
+                                # Handle List[X] and other generic types - extract first arg
+                                field_type = args[0]
 
                     # If it's a nested Pydantic model, generate its schema
                     if isinstance(field_type, type) and issubclass(field_type, BaseModel):
@@ -746,11 +746,11 @@ If an error is reported, fix the previously generated code accordingly.
                     return extracted
 
         # Fallback heuristics
-        lines = [l.rstrip() for l in response.splitlines()]
+        lines = [line.rstrip() for line in response.splitlines()]
         code_like = []
         in_code = False
-        for l in lines:
-            stripped = l.strip()
+        for line in lines:
+            stripped = line.strip()
             if not stripped:
                 continue
             # Start collecting when we see common Python starters
@@ -774,7 +774,7 @@ If an error is reported, fix the previously generated code accordingly.
             ):
                 in_code = True
             if in_code:
-                code_like.append(l)
+                code_like.append(line)
         fallback = "\n".join(code_like).strip()
         if fallback:
             # Remove trailing triple backticks if model left them open
