@@ -122,6 +122,40 @@ class Tool(BaseModel):
     is_terminal: bool = False
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+    
+    @classmethod
+    def __get_pydantic_json_schema__(cls, core_schema, handler):
+        """
+        Custom JSON schema for the Tool class.
+        
+        IMPORTANT: This is NOT used to get schemas for individual tools!
+        Individual tool schemas come from: tool.input_schema.model_json_schema()
+        
+        Why this is needed:
+        - Tool has `execute: Callable` which cannot be serialized to JSON schema
+        - When generating schemas for models that contain Tool (e.g., LLMInput with tools: list[Tool]),
+          Pydantic needs to generate Tool's class schema to understand the type structure
+        - Without this, Pydantic fails with: "Cannot generate JsonSchema for CallableSchema"
+        
+        Solution:
+        - Remove the `execute` field from the core schema before processing
+        - Let Pydantic's handler process the rest normally (proper type checking!)
+        - This preserves type validation for name, description, input_schema, output_schema, is_terminal
+        
+        Note: input_schema/output_schema are type[BaseModel] (class objects), so their schema
+        just indicates "subclass of BaseModel". Actual schemas obtained via tool.input_schema.model_json_schema().
+        """
+        import copy
+        
+        # Create a copy and remove the execute field
+        modified_schema = copy.deepcopy(core_schema)
+        if 'schema' in modified_schema and modified_schema['schema'].get('type') == 'model-fields':
+            fields = modified_schema['schema'].get('fields', {})
+            if 'execute' in fields:
+                del fields['execute']
+        
+        # Let Pydantic process the rest with proper type checking
+        return handler(modified_schema)
 
     async def __call__(self, *args, **kwargs) -> Any:
         """Execute the tool with validation.

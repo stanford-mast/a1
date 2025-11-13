@@ -68,6 +68,10 @@ from .strategies import (
     QuantitativeCriteria,
     Verify,
 )
+from .extra_strategies import (
+    ReduceAndGenerate,
+    CheckOrdering,
+)
 
 __version__ = "0.1.3"
 
@@ -106,8 +110,10 @@ __all__ = [
     # Strategies
     "Generate",
     "BaseGenerate",
+    "ReduceAndGenerate",
     "Verify",
     "BaseVerify",
+    "CheckOrdering",
     "QualitativeCriteria",
     "IsLoop",
     "Cost",

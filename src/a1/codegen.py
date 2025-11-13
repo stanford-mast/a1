@@ -631,6 +631,7 @@ If an error is reported, fix the previously generated code accordingly.
         and adds their definitions to the lines list.
         """
         from pydantic import BaseModel
+        from typing import get_origin, get_args, Union
 
         if not (isinstance(schema_class, type) and issubclass(schema_class, BaseModel)):
             return
@@ -649,18 +650,23 @@ If an error is reported, fix the previously generated code accordingly.
                 for field_name, field_info in model_class.model_fields.items():
                     field_type = field_info.annotation
 
-                    # Handle Optional/Union types
-                    if hasattr(field_type, "__origin__"):
-                        if hasattr(field_type, "__args__"):
-                            # For Optional[X] or Union[X, ...], get the non-None type
-                            for arg in field_type.__args__:
+                    # Handle Optional/Union types using get_origin and get_args
+                    origin = get_origin(field_type)
+                    if origin is Union or str(type(field_type).__name__) == 'UnionType':
+                        # For Optional[X] or Union[X, ...], get the non-None type
+                        args = get_args(field_type)
+                        if args:
+                            for arg in args:
                                 if arg is not type(None):
                                     field_type = arg
                                     break
 
-                    # Handle List[X]
-                    if hasattr(field_type, "__origin__") and hasattr(field_type, "__args__"):
-                        field_type = field_type.__args__[0]
+                    # Handle List[X] and other generic types
+                    origin = get_origin(field_type)
+                    if origin is not None:
+                        args = get_args(field_type)
+                        if args:
+                            field_type = args[0]
 
                     # If it's a nested Pydantic model, generate its schema
                     if isinstance(field_type, type) and issubclass(field_type, BaseModel):

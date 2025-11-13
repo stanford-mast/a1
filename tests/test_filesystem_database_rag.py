@@ -14,6 +14,13 @@ import pytest
 
 from a1 import RAG, Database, FileSystem
 
+# Check if duckdb-engine is available
+try:
+    import duckdb_engine
+    HAS_DUCKDB = True
+except ImportError:
+    HAS_DUCKDB = False
+
 
 class TestFileSystemReadWrite:
     """Test FileSystem class with read and write operations."""
@@ -98,6 +105,7 @@ class TestDatabaseReadWrite:
     """Test Database class with DuckDB connection strings."""
 
     @pytest.mark.asyncio
+    @pytest.mark.skipif(not HAS_DUCKDB, reason="duckdb-engine not installed")
     async def test_database_with_duckdb_file(self):
         """Test Database with DuckDB file-based connection string."""
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -100,8 +100,8 @@ async def _run_enum_agent_test(num_enums: int, should_succeed: bool):
     agent = Agent(
         name="search_agent",
         description="Agent that searches product categories",
-        input_schema=SearchInput,
-        output_schema=SearchOutput,
+        input_schema=ProductInput,
+        output_schema=output_schema,
         tools=[EM(), search_categories, LLM("gpt-4o-mini")]  # EM for large enum support (Done auto-added by LLM)
     )
     

@@ -282,7 +282,7 @@ def clean_schema_for_openai(schema_dict: Dict[str, Any]) -> Dict[str, Any]:
     
     OpenAI strict mode requires:
     - $ref objects to only have $ref key (no additional properties like 'description')
-    - additionalProperties set to false at all levels
+    - additionalProperties set to false at all levels for object types
     
     Args:
         schema_dict: JSON schema dictionary
@@ -296,8 +296,15 @@ def clean_schema_for_openai(schema_dict: Dict[str, Any]) -> Dict[str, Any]:
             if '$ref' in node:
                 return {'$ref': node['$ref']}
             
-            # Recursively clean nested objects
-            return {k: _clean_node(v) for k, v in node.items()}
+            # Recursively clean nested objects first
+            cleaned = {k: _clean_node(v) for k, v in node.items()}
+            
+            # Add additionalProperties: false to all object types
+            # This is required by OpenAI's structured output API
+            if cleaned.get('type') == 'object' and 'additionalProperties' not in cleaned:
+                cleaned['additionalProperties'] = False
+            
+            return cleaned
         
         elif isinstance(node, list):
             return [_clean_node(item) for item in node]
