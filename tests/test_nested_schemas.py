@@ -11,7 +11,7 @@ are properly handled in:
 import pytest
 from pydantic import BaseModel, Field
 
-from a1 import Agent, Runtime, Tool
+from a1 import LLM, Agent, BaseExecutor, BaseGenerate, Runtime, Tool
 
 # ============================================================================
 # Nested Schema Definitions
@@ -110,9 +110,6 @@ class TestNestedSchemaGeneration:
 
     def test_simple_nested_input_schema(self):
         """Test definition code with nested input schema."""
-        from a1 import LLM
-        from a1.codegen import BaseGenerate
-
         # Create a tool with nested input
         tool = Tool(
             name="store_contact",
@@ -146,9 +143,6 @@ class TestNestedSchemaGeneration:
 
     def test_deeply_nested_output_schema(self):
         """Test definition code with deeply nested output schema."""
-        from a1 import LLM
-        from a1.codegen import BaseGenerate
-
         tool = Tool(
             name="search_restaurants",
             description="Search restaurants",
@@ -184,8 +178,6 @@ class TestNestedSchemaExecution:
     @pytest.mark.asyncio
     async def test_execute_with_nested_input(self):
         """Test executing code that uses nested input schemas."""
-        from a1.executor import BaseExecutor
-
         # Create tool with nested schema
         tool = Tool(
             name="store_contact",
@@ -218,8 +210,6 @@ output = result
     @pytest.mark.asyncio
     async def test_execute_nested_output_unpacking(self):
         """Test executing code that unpacks nested output."""
-        from a1.executor import BaseExecutor
-
         tool = Tool(
             name="search_restaurants",
             description="Search restaurants",
@@ -253,7 +243,6 @@ output = {
     @pytest.mark.asyncio
     async def test_ergonomic_kwargs_with_nested_schema(self):
         """Test ergonomic **kwargs calling with nested inputs."""
-        from a1.executor import BaseExecutor
 
         tool = Tool(
             name="store_contact",
@@ -334,8 +323,6 @@ class TestNestedSchemaEdgeCases:
 
     def test_deeply_nested_objects(self):
         """Test support for deeply nested object structures."""
-        from a1 import LLM
-        from a1.codegen import BaseGenerate
 
         # Create a deeply nested schema (3+ levels)
         class Level3(BaseModel):
@@ -383,8 +370,6 @@ class TestNestedSchemaEdgeCases:
 
     def test_optional_nested_fields(self):
         """Test nested schemas with optional fields."""
-        from a1 import LLM
-        from a1.codegen import BaseGenerate
 
         class OptionalAddress(BaseModel):
             street: str | None = None
