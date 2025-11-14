@@ -8,6 +8,7 @@ are properly handled in:
 - Tool wrapper ergonomics (calling with **kwargs)
 """
 
+import os
 import pytest
 from pydantic import BaseModel, Field
 
@@ -277,6 +278,7 @@ output = result
 class TestNestedSchemaIntegration:
     """Integration tests with Runtime using nested schemas."""
 
+    @pytest.mark.skipif(not os.environ.get("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
     @pytest.mark.asyncio
     async def test_jit_with_nested_schemas(self):
         """Test JIT mode with tools that have nested schemas."""
@@ -309,13 +311,8 @@ class TestNestedSchemaIntegration:
 
         # This should work without errors despite nested schemas
         # (may fail if LLM not available, but schema handling should be fine)
-        try:
-            result = await runtime.jit(agent, query="Good Italian food in NYC")
-            assert result is not None
-        except Exception as e:
-            # If it fails due to missing LLM, that's OK - we're testing schema handling
-            if "GROQ_API_KEY" not in str(e) and "api_key" not in str(e).lower():
-                raise
+        result = await runtime.jit(agent, query="Good Italian food in NYC")
+        assert result is not None
 
 
 class TestNestedSchemaEdgeCases:

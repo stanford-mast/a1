@@ -209,6 +209,7 @@ async def _analyze_schema_size(num_enums: int):
         print(f"   Reduction will create much smaller schemas sent to LLM")
 
 
+@pytest.mark.skipif(not os.environ.get("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
 @pytest.mark.asyncio
 async def test_1k_enum_agent():
     """Test that agent handles 1,000 enum values successfully."""
@@ -216,6 +217,7 @@ async def test_1k_enum_agent():
     assert success, "1k enum test should succeed with automatic reduction"
 
 
+@pytest.mark.skipif(not os.environ.get("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
 @pytest.mark.asyncio
 async def test_2k_enum_agent():
     """Test that agent handles 2,000 enum values via semantic reduction."""
@@ -224,6 +226,7 @@ async def test_2k_enum_agent():
 
 
 @pytest.mark.stress
+@pytest.mark.skipif(not os.environ.get("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
 @pytest.mark.asyncio
 async def test_1m_enum_agent():
     """
@@ -239,6 +242,7 @@ async def test_1m_enum_agent():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not os.environ.get("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
 async def test_enum_schema_size():
     """Test schema size analysis for different enum counts."""
     await _analyze_schema_size(1000)

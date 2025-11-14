@@ -76,6 +76,7 @@ async def test_failed_attempts_dont_pollute_main_context():
         print(f"✓ Context clean even after failure: {len(messages)} messages")
 
 
+@pytest.mark.skipif(not os.getenv("GROQ_API_KEY"), reason="GROQ_API_KEY not set")
 @pytest.mark.asyncio
 async def test_multiple_jit_calls_accumulate_correctly():
     """
