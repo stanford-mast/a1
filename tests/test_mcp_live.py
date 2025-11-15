@@ -5,10 +5,10 @@ This test uses actual MCP servers to test ToolSet.from_mcp_servers()
 and tool invocation.
 """
 
-import pytest
 import tempfile
-import os
 from pathlib import Path
+
+import pytest
 
 from a1 import ToolSet
 
@@ -21,6 +21,8 @@ class TestMCPLiveIntegration:
         """Test loading tools from the filesystem MCP server."""
         # Create a temporary directory for testing
         with tempfile.TemporaryDirectory() as tmpdir:
+            # Resolve the real path (handles macOS symlinks like /var -> /private/var)
+            tmpdir_resolved = str(Path(tmpdir).resolve())
             # Configure the filesystem MCP server
             config = {
                 "mcpServers": {
@@ -29,7 +31,7 @@ class TestMCPLiveIntegration:
                         "args": [
                             "-y",
                             "@modelcontextprotocol/server-filesystem",
-                            tmpdir,  # Limit to temp directory for safety
+                            tmpdir_resolved,  # Limit to temp directory for safety
                         ],
                     }
                 }
@@ -53,8 +55,10 @@ class TestMCPLiveIntegration:
     async def test_invoke_mcp_tool_read_file(self):
         """Test invoking MCP tool to read a file."""
         with tempfile.TemporaryDirectory() as tmpdir:
+            # Resolve the real path (handles macOS symlinks like /var -> /private/var)
+            tmpdir_resolved = str(Path(tmpdir).resolve())
             # Create a test file
-            test_file = Path(tmpdir) / "test.txt"
+            test_file = Path(tmpdir_resolved) / "test.txt"
             test_content = "Hello from MCP test!"
             test_file.write_text(test_content)
 
@@ -63,7 +67,7 @@ class TestMCPLiveIntegration:
                 "mcpServers": {
                     "filesystem": {
                         "command": "npx",
-                        "args": ["-y", "@modelcontextprotocol/server-filesystem", tmpdir],
+                        "args": ["-y", "@modelcontextprotocol/server-filesystem", tmpdir_resolved],
                     }
                 }
             }
@@ -99,12 +103,14 @@ class TestMCPLiveIntegration:
     async def test_invoke_mcp_tool_write_file(self):
         """Test invoking MCP tool to write a file."""
         with tempfile.TemporaryDirectory() as tmpdir:
+            # Resolve the real path (handles macOS symlinks like /var -> /private/var)
+            tmpdir_resolved = str(Path(tmpdir).resolve())
             # Configure MCP server
             config = {
                 "mcpServers": {
                     "filesystem": {
                         "command": "npx",
-                        "args": ["-y", "@modelcontextprotocol/server-filesystem", tmpdir],
+                        "args": ["-y", "@modelcontextprotocol/server-filesystem", tmpdir_resolved],
                     }
                 }
             }
@@ -123,7 +129,7 @@ class TestMCPLiveIntegration:
             print(f"\n✓ Found write tool: {write_tool.name}")
 
             # Invoke the tool
-            test_file = Path(tmpdir) / "output.txt"
+            test_file = Path(tmpdir_resolved) / "output.txt"
             test_content = "Content written by MCP tool!"
             result = await write_tool(path=str(test_file), content=test_content)
 
@@ -138,23 +144,25 @@ class TestMCPLiveIntegration:
             actual_content = test_file.read_text()
             assert actual_content == test_content, "File content should match"
 
-            print(f"✓ MCP write_file tool works! File created successfully")
+            print("✓ MCP write_file tool works! File created successfully")
 
     @pytest.mark.asyncio
     async def test_invoke_mcp_tool_list_directory(self):
         """Test invoking MCP tool to list directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
+            # Resolve the real path (handles macOS symlinks like /var -> /private/var)
+            tmpdir_resolved = str(Path(tmpdir).resolve())
             # Create some test files
-            (Path(tmpdir) / "file1.txt").write_text("test1")
-            (Path(tmpdir) / "file2.txt").write_text("test2")
-            (Path(tmpdir) / "file3.md").write_text("test3")
+            (Path(tmpdir_resolved) / "file1.txt").write_text("test1")
+            (Path(tmpdir_resolved) / "file2.txt").write_text("test2")
+            (Path(tmpdir_resolved) / "file3.md").write_text("test3")
 
             # Configure MCP server
             config = {
                 "mcpServers": {
                     "filesystem": {
                         "command": "npx",
-                        "args": ["-y", "@modelcontextprotocol/server-filesystem", tmpdir],
+                        "args": ["-y", "@modelcontextprotocol/server-filesystem", tmpdir_resolved],
                     }
                 }
             }
@@ -174,15 +182,15 @@ class TestMCPLiveIntegration:
                 print(f"\n✓ Found list tool: {list_tool.name}")
 
                 # Invoke the tool
-                result = await list_tool(path=tmpdir)
+                result = await list_tool(path=tmpdir_resolved)
 
-                print(f"  Listed directory: {tmpdir}")
+                print(f"  Listed directory: {tmpdir_resolved}")
                 print(f"  Result: {result}")
 
                 assert result is not None
                 assert result.isError is False
 
-                print(f"✓ MCP list_directory tool works!")
+                print("✓ MCP list_directory tool works!")
             else:
                 print("\n⚠ list_directory tool not available in this MCP server version")
 
@@ -190,16 +198,19 @@ class TestMCPLiveIntegration:
     async def test_multiple_mcp_servers(self):
         """Test loading tools from multiple MCP servers."""
         with tempfile.TemporaryDirectory() as tmpdir1, tempfile.TemporaryDirectory() as tmpdir2:
+            # Resolve the real paths (handles macOS symlinks like /var -> /private/var)
+            tmpdir1_resolved = str(Path(tmpdir1).resolve())
+            tmpdir2_resolved = str(Path(tmpdir2).resolve())
             # Configure two different filesystem servers
             config = {
                 "mcpServers": {
                     "filesystem1": {
                         "command": "npx",
-                        "args": ["-y", "@modelcontextprotocol/server-filesystem", tmpdir1],
+                        "args": ["-y", "@modelcontextprotocol/server-filesystem", tmpdir1_resolved],
                     },
                     "filesystem2": {
                         "command": "npx",
-                        "args": ["-y", "@modelcontextprotocol/server-filesystem", tmpdir2],
+                        "args": ["-y", "@modelcontextprotocol/server-filesystem", tmpdir2_resolved],
                     },
                 }
             }
@@ -212,7 +223,7 @@ class TestMCPLiveIntegration:
             # Each filesystem server provides multiple tools, so we should have many
             assert len(toolset.tools) >= 2, "Should have tools from both servers"
 
-            print(f"\n✓ Loaded tools from multiple MCP servers")
+            print("\n✓ Loaded tools from multiple MCP servers")
             print(f"  Total tools: {len(toolset.tools)}")
             print(f"  Description: {toolset.description}")
 
@@ -224,18 +235,20 @@ class TestMCPLiveIntegration:
     async def test_mcp_tool_metadata(self):
         """Test that MCP tools have correct metadata."""
         with tempfile.TemporaryDirectory() as tmpdir:
+            # Resolve the real path (handles macOS symlinks like /var -> /private/var)
+            tmpdir_resolved = str(Path(tmpdir).resolve())
             config = {
                 "mcpServers": {
                     "filesystem": {
                         "command": "npx",
-                        "args": ["-y", "@modelcontextprotocol/server-filesystem", tmpdir],
+                        "args": ["-y", "@modelcontextprotocol/server-filesystem", tmpdir_resolved],
                     }
                 }
             }
 
             toolset = await ToolSet.from_mcp_servers(config)
 
-            print(f"\n✓ MCP Toolset metadata:")
+            print("\n✓ MCP Toolset metadata:")
             print(f"  Name: {toolset.name}")
             print(f"  Description: {toolset.description}")
 
@@ -251,11 +264,13 @@ class TestMCPLiveIntegration:
     async def test_mcp_tool_round_trip(self):
         """Test writing and reading back a file via MCP tools."""
         with tempfile.TemporaryDirectory() as tmpdir:
+            # Resolve the real path (handles macOS symlinks like /var -> /private/var)
+            tmpdir_resolved = str(Path(tmpdir).resolve())
             config = {
                 "mcpServers": {
                     "filesystem": {
                         "command": "npx",
-                        "args": ["-y", "@modelcontextprotocol/server-filesystem", tmpdir],
+                        "args": ["-y", "@modelcontextprotocol/server-filesystem", tmpdir_resolved],
                     }
                 }
             }
@@ -263,14 +278,16 @@ class TestMCPLiveIntegration:
             toolset = await ToolSet.from_mcp_servers(config)
 
             # Find write and read_text_file tools
-            write_tool = next((t for t in toolset.tools if "write" in t.name.lower() and "file" in t.name.lower()), None)
+            write_tool = next(
+                (t for t in toolset.tools if "write" in t.name.lower() and "file" in t.name.lower()), None
+            )
             read_tool = next((t for t in toolset.tools if t.name.lower() == "read_text_file"), None)
 
             assert write_tool is not None
             assert read_tool is not None
 
             # Write a file
-            test_file = Path(tmpdir) / "roundtrip.txt"
+            test_file = Path(tmpdir_resolved) / "roundtrip.txt"
             test_content = "Round-trip test content!"
             write_result = await write_tool(path=str(test_file), content=test_content)
             assert write_result.isError is False
@@ -280,7 +297,7 @@ class TestMCPLiveIntegration:
             assert read_result.isError is False
             assert test_content in str(read_result.content)
 
-            print(f"\n✓ MCP round-trip test passed!")
+            print("\n✓ MCP round-trip test passed!")
             print(f"  Wrote: {test_content}")
             print(f"  Read back: {str(read_result.content)[:50]}...")
 

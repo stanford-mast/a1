@@ -3,22 +3,21 @@ Live demonstration of MCP and OpenAPI tool loading and invocation.
 
 This test suite demonstrates that the tools actually work end-to-end:
 1. Load tools from real MCP filesystem server
-2. Load tools from real OpenAPI server  
+2. Load tools from real OpenAPI server
 3. Actually invoke the tools with real operations
 """
 
-import asyncio
 import tempfile
-from pathlib import Path
-from multiprocessing import Process
 import time
+from multiprocessing import Process
+from pathlib import Path
+
+import pytest
 import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel
-import pytest
 
-from a1 import ToolSet, Agent, tool
-
+from a1 import Agent, ToolSet, tool
 
 # ============================================================================
 # Test 1: @tool decorator and direct function passing
@@ -45,7 +44,7 @@ async def test_tool_decorator_and_function_passing():
     # Test direct function passing
     agent = Agent(
         name="math_agent",
-        tools=[multiply, divide]  # Mix of @tool and raw function
+        tools=[multiply, divide],  # Mix of @tool and raw function
     )
 
     print(f"\n✓ Created agent with {len(agent.tools)} tools")
@@ -70,6 +69,9 @@ async def test_mcp_integration():
     print("=" * 70)
 
     with tempfile.TemporaryDirectory() as tmpdir:
+        # Resolve the real path (handles macOS symlinks like /var -> /private/var)
+        tmpdir_resolved = str(Path(tmpdir).resolve())
+
         # Configure real MCP filesystem server
         config = {
             "mcpServers": {
@@ -78,13 +80,13 @@ async def test_mcp_integration():
                     "args": [
                         "-y",
                         "@modelcontextprotocol/server-filesystem",
-                        tmpdir,
+                        tmpdir_resolved,
                     ],
                 }
             }
         }
 
-        print(f"\n📁 Using temp directory: {tmpdir}")
+        print(f"\n📁 Using temp directory: {tmpdir_resolved}")
         print("🔄 Loading tools from MCP filesystem server...")
 
         # Load tools from MCP server
@@ -107,8 +109,8 @@ async def test_mcp_integration():
 
         print("\n📝 Testing MCP tools with actual file operations...")
 
-        # Write a file
-        test_file = Path(tmpdir) / "demo.txt"
+        # Write a file (use resolved path)
+        test_file = Path(tmpdir_resolved) / "demo.txt"
         test_content = "Hello from MCP integration test!"
 
         print(f"\n  Writing: '{test_content}'")
@@ -126,7 +128,7 @@ async def test_mcp_integration():
         # Verify
         actual_content = test_file.read_text()
         assert actual_content == test_content
-        print(f"\n  ✅ Round-trip successful! File content matches.")
+        print("\n  ✅ Round-trip successful! File content matches.")
 
 
 # ============================================================================
@@ -218,10 +220,9 @@ async def test_openapi_integration():
         print(f"  Result: {result2.data['result']}")
         assert result2.data["result"] == 42
 
-        print(f"\n  ✅ Both calculations successful!")
+        print("\n  ✅ Both calculations successful!")
 
     finally:
         # Cleanup
         server_process.terminate()
         server_process.join(timeout=5)
-
