@@ -33,6 +33,21 @@ agent = Agent(tools=[search, divide])  # Both @tool and raw functions work
 
 Supports primitive and complex return types (Pydantic models, lists, dicts).
 
+## Descriptions
+
+Add descriptions to help LLMs understand tools:
+
+```python
+@tool(
+    name="api_call",
+    description="Make an HTTP request to an endpoint"
+)
+async def api_call(url: str, method: str = "GET") -> str:
+    ...
+```
+
+**Note**: The `name` parameter sets the tool name (defaults to the function name), and the `description` parameter sets the tool description (defaults to the function's docstring).
+
 ## OpenAPI
 
 Create tools from OpenAPI 3.0 specifications:
@@ -113,7 +128,7 @@ Category = Enum('Category', {f'CAT_{i}': f'cat_{i}' for i in range(1_000_000)})
 
 class Output(BaseModel):
     category: Category
-    
+
 agent = Agent(
     output_schema=Output,
     tools=[EM("text-embedding-3-small"), LLM("gpt-4.1")]  # EM required
@@ -186,18 +201,3 @@ from a1 import Done
 
 done = Done()  # Agent can call this to signal completion
 ```
-
-## Descriptions
-
-Add descriptions to help LLMs understand tools:
-
-```python
-@tool(
-    name="api_call",
-    description="Make an HTTP request to an endpoint"
-)
-async def api_call(url: str, method: str = "GET") -> str:
-    ...
-```
-
-
