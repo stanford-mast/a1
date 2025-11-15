@@ -428,9 +428,7 @@ class ToolSet(BaseModel):
                 input_schema = _json_schema_to_pydantic(mcp_tool.inputSchema, f"{mcp_tool.name}_Input")
 
                 # MCP tools return CallToolResult
-                output_schema = create_model(
-                    f"{mcp_tool.name}_Output", content=(Any, ...), isError=(bool, False)
-                )
+                output_schema = create_model(f"{mcp_tool.name}_Output", content=(Any, ...), isError=(bool, False))
 
                 # Create execute wrapper that captures the current tool/session
                 def make_execute_wrapper(tool_name: str, sess):
@@ -522,10 +520,7 @@ class ToolSet(BaseModel):
                     continue
 
         if not spec:
-            raise ValueError(
-                f"Could not find OpenAPI spec at {endpoint}. "
-                f"Tried: {', '.join(spec_paths)}"
-            )
+            raise ValueError(f"Could not find OpenAPI spec at {endpoint}. Tried: {', '.join(spec_paths)}")
 
         # Extract API info
         api_title = spec.get("info", {}).get("title", "API")
@@ -858,12 +853,17 @@ class Agent(BaseModel):
 
     @classmethod
     def _convert_callables_to_tools(cls, tools_list: list) -> list[Tool | ToolSet]:
+        from .llm import LLM
+
         """Convert raw callable functions to Tool objects."""
         converted = []
         for item in tools_list:
             # If it's already a Tool or ToolSet, keep it as-is
             if isinstance(item, (Tool, ToolSet)):
                 converted.append(item)
+            # If it's an LLM instance, convert to its .tool property
+            elif isinstance(item, LLM):
+                converted.append(item.tool)
             # If it's a callable function, convert to Tool
             elif callable(item) and not isinstance(item, type):
                 # Extract function metadata
@@ -913,12 +913,25 @@ class Agent(BaseModel):
 
     def get_all_tools(self) -> list[Tool]:
         """Flatten all tools from tools and toolsets."""
+        from .llm import LLM
+
         all_tools = []
         for item in self.tools:
             if isinstance(item, Tool):
                 all_tools.append(item)
             elif isinstance(item, ToolSet):
-                all_tools.extend(item.tools)
+                # Handle tools in ToolSet (could be Tool, ToolSet, or LLM)
+                for tool_item in item.tools:
+                    if isinstance(tool_item, Tool):
+                        all_tools.append(tool_item)
+                    elif isinstance(tool_item, ToolSet):
+                        # Nested ToolSet - recursively process it
+                        nested_agent = Agent(tools=[tool_item])
+                        all_tools.extend(nested_agent.get_all_tools())
+                    elif isinstance(tool_item, LLM):
+                        all_tools.append(tool_item.tool)
+            elif isinstance(item, LLM):
+                all_tools.append(item.tool)
         return all_tools
 
     def get_tool(self, name: str) -> Tool | None:

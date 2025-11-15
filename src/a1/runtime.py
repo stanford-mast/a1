@@ -67,7 +67,6 @@ class Runtime:
 
         from pydantic import BaseModel, Field
 
-        from .builtin_tools import LLM
         from .llm import no_context
         from .models import Strategy
 
@@ -119,7 +118,7 @@ class Runtime:
 
         # Current agent being executed (for tool calling)
         self.current_agent: Agent | None = None
-        
+
         # Embedding cache: map from hash -> vector (or list of vectors)
         # Used by EM tools to avoid recomputing embeddings for repeated items.
         # Keys are hex hashes of the serialized item(s).
@@ -127,7 +126,7 @@ class Runtime:
 
     def _hash_string(self, s: str) -> str:
         """Compute a stable hash for a string to use as cache key."""
-        return hashlib.sha256(s.encode('utf-8')).hexdigest()
+        return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
     def get_or_compute_embedding(self, text: str, embed_fn) -> list[float]:
         """Return cached embedding for text or compute via embed_fn(text).
@@ -148,7 +147,7 @@ class Runtime:
         Returns list of vectors in the same order.
         """
         return [self.get_or_compute_embedding(it, embed_fn) for it in items]
-        
+
         # Save initial state if persistence enabled
         if self.keep_updated and self.file_path:
             self._save()
@@ -282,14 +281,14 @@ class Runtime:
         max_retries = strategy.max_iterations
 
         tracer = trace.get_tracer(__name__)
-        
+
         # Early verification: Check for large enums requiring EM tool BEFORE code generation
         for verifier in verify:
-            if hasattr(verifier, '_check_large_enums'):
+            if hasattr(verifier, "_check_large_enums"):
                 has_error, error_msg = verifier._check_large_enums(agent)
                 if has_error:
                     raise ValueError(f"Agent validation failed: {error_msg}")
-        
+
         with tracer.start_as_current_span("aot") as span:
             span.set_attribute("agent.name", agent.name)
             span.set_attribute("cache.enabled", cache)
@@ -333,8 +332,9 @@ class Runtime:
                     # Create a codegen context for this candidate
                     # This enables conversation continuity across retries
                     from .context import Context
+
                     codegen_context = Context()
-                    
+
                     past_attempts = []
                     for attempt in range(max_retries):
                         result = await generate.generate(
@@ -539,8 +539,9 @@ class Runtime:
                     # Do NOT branch from attempt_context - that only has user task JSON
                     # Code generation needs its own clean context
                     from .context import Context
+
                     codegen_context = Context()
-                    
+
                     past_attempts = []
                     for attempt in range(max_retries):
                         result = await generate.generate(
@@ -705,6 +706,11 @@ class Runtime:
         Returns:
             Output from the tool
         """
+        from .llm import LLM
+
+        if isinstance(tool, LLM):
+            tool = tool.tool
+
         from opentelemetry import trace
 
         tracer = trace.get_tracer(__name__)
@@ -903,6 +909,7 @@ class Runtime:
 
         # Generate short name for LLM tool using the same mapping as codegen
         from .codegen import generate_tool_names
+
         tool_name_map = generate_tool_names(llm_tools)
         llm_short_name = tool_name_map.get(llm_tool.name, llm_tool.name)
 
