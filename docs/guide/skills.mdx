@@ -5,6 +5,8 @@ description: Give your agent know-how
 
 ## Creating Skills
 
+### Manual Creation
+
 ```python
 from a1 import Skill
 
@@ -19,6 +21,26 @@ skill = Skill(
     modules=["requests"]
 )
 ```
+
+### From URLs
+
+Create skills automatically from web documentation, articles, or tutorials:
+
+```python
+from a1 import Skill
+
+skill = await Skill.from_url(
+    urls="https://docs.a1project.org/",
+    name="a1",
+    description="The agent-to-code compiler"
+)
+```
+
+<Note>
+  Requires `pip install crawl4ai`. The method crawls the URLs, uses an LLM to
+  summarize the content into a skill, and auto-detects Python modules mentioned
+  in the content.
+</Note>
 
 ## Using Skills
 
