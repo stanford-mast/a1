@@ -2,7 +2,7 @@
 Z3 Logical Reasoning Agent - StrategyQA-style Examples
 
 Demonstrates using Z3 theorem prover for formal logical reasoning.
-The agent generates Z3 code to solve logical problems, similar to 
+The agent generates Z3 code to solve logical problems, similar to
 the ProofOfThought approach discussed on HackerNews.
 
 The key insight: LLMs can generate formal Z3 programs that provide
@@ -23,16 +23,13 @@ from pathlib import Path
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
-from a1 import Agent, LLM, Runtime, Skill
+from a1 import LLM, Agent, Runtime, Skill
 
 # Load environment variables from .env file in the repository root
 load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 # Configure logging to see what's happening
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(levelname)s - %(name)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(name)s - %(message)s")
 
 
 # ============================================================================

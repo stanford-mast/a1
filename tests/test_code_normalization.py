@@ -67,7 +67,7 @@ return result"""
     def test_empty_code(self):
         """Test empty/None code - should handle gracefully."""
         assert normalize_generated_code("") == ""
-        assert normalize_generated_code(None) == None
+        assert normalize_generated_code(None) is None
 
     def test_complex_multiline_body(self):
         """Test more complex multiline function body."""

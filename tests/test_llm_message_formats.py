@@ -114,9 +114,7 @@ async def test_openai_message_format(calculator_tool):
         ctx = get_context("openai_test")
 
         # Execute: LLM should call calculator tool
-        result = await runtime.execute(
-            llm_tool, **{"content": "What is 10 + 5?", "tools": [calculator_tool], "context": ctx}
-        )
+        await runtime.execute(llm_tool, **{"content": "What is 10 + 5?", "tools": [calculator_tool], "context": ctx})
 
         # Inspect the context
         messages = inspect_context_messages(ctx, "OpenAI (gpt-4.1-mini)")
@@ -144,7 +142,7 @@ async def test_claude_message_format(calculator_tool):
         # Get or create context for this test
         ctx = get_context("claude_test")
 
-        result = await runtime.execute(
+        await runtime.execute(
             llm_tool, **{"content": "Calculate 42 divided by 6", "tools": [calculator_tool], "context": ctx}
         )
 
@@ -172,9 +170,7 @@ async def test_gemini_message_format(calculator_tool):
         # Get or create context for this test
         ctx = get_context("gemini_test")
 
-        result = await runtime.execute(
-            llm_tool, **{"content": "What's 8 times 9?", "tools": [calculator_tool], "context": ctx}
-        )
+        await runtime.execute(llm_tool, **{"content": "What's 8 times 9?", "tools": [calculator_tool], "context": ctx})
 
         messages = inspect_context_messages(ctx, "Google Gemini (2.0-flash)")
 
@@ -200,7 +196,7 @@ async def test_groq_message_format(calculator_tool):
         # Get or create context for this test
         ctx = get_context("groq_test")
 
-        result = await runtime.execute(
+        await runtime.execute(
             llm_tool, **{"content": "Calculate 100 minus 50", "tools": [calculator_tool], "context": ctx}
         )
 

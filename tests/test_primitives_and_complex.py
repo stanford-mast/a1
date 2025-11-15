@@ -5,8 +5,8 @@ import asyncio
 import os
 from pathlib import Path
 
-from pydantic import BaseModel, Field
 import pytest
+from pydantic import BaseModel, Field
 
 # Load environment variables
 env_path = Path(__file__).parent / ".env"
@@ -18,7 +18,7 @@ if env_path.exists():
                 key, value = line.split("=", 1)
                 os.environ[key.strip()] = value.strip()
 
-from a1 import LLM, Agent, tool
+from a1 import LLM, Agent, tool  # noqa: E402
 
 
 # Test 1: Primitive return types
@@ -208,7 +208,7 @@ async def main():
     results = []
     for test_name, test_func in tests:
         try:
-            result = await test_func()
+            await test_func()
             results.append((test_name, True, None))
         except Exception as e:
             results.append((test_name, False, str(e)))

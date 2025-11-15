@@ -236,7 +236,7 @@ Return ONLY "true" or "false" (lowercase, no quotes, no explanation).
         # Run async verification - handle both sync and async contexts
         try:
             # Check if we're in an async context
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             # We are in an async context, so we need to await directly
             # Create a new task and wait for it
             import concurrent.futures

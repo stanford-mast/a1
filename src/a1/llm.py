@@ -291,14 +291,14 @@ class LLM:
                         name = t.get("name") or t.get("tool") or "unknown_tool"
                         desc = t.get("description", "")
                         # Create minimal input/output schemas so we can produce JSON schema
-                        InputModel = create_model(f"{name}_Input")
-                        OutputModel = create_model(f"{name}_Output", result=(Any, ...))
+                        input_model = create_model(f"{name}_Input")
+                        output_model = create_model(f"{name}_Output", result=(Any, ...))
                         try:
                             reconstructed = ToolClass(
                                 name=name,
                                 description=desc,
-                                input_schema=InputModel,
-                                output_schema=OutputModel,
+                                input_schema=input_model,
+                                output_schema=output_model,
                                 execute=(lambda **k: None),
                                 is_terminal=bool(t.get("is_terminal", False)),
                             )

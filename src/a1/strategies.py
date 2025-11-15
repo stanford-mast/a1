@@ -23,10 +23,6 @@ from .codecheck import (
     check_dangerous_ops,
     check_syntax,
 )
-from .extra_codecheck import (
-    IsFunction,
-    QualitativeCriteria,
-)
 from .codecost import (
     LOOP_MULTIPLIER,
     TOOL_LATENCIES,
@@ -41,6 +37,10 @@ from .codegen import (
     RULES,
     BaseGenerate,
     Generate,
+)
+from .extra_codecheck import (
+    IsFunction,
+    QualitativeCriteria,
 )
 
 __all__ = [

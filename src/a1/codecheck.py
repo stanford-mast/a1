@@ -11,7 +11,7 @@ import logging
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Tuple, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -220,12 +220,12 @@ class BaseVerify(Verify):
             tree = ast.parse(generated_code)
         except SyntaxError as e:
             return False, f"Syntax error: {e}"
-        
+
         # Check for large enums requiring EM tool
         has_large_enum, enum_error = self._check_large_enums(agent)
         if has_large_enum:
             return False, enum_error
-        
+
         # Check for dangerous operations
         for node in ast.walk(tree):
             # Check imports - allow them, they work fine in exec()
@@ -250,7 +250,7 @@ class BaseVerify(Verify):
                         return False, f"Dangerous function detected: {func_name}"
 
         # Validate constant tool inputs against Field constraints (compile-time validation)
-        if agent and hasattr(agent, 'tools'):
+        if agent and hasattr(agent, "tools"):
             is_valid, constraint_error = self._check_field_constraints(tree, agent)
             if not is_valid:
                 return False, constraint_error
@@ -263,77 +263,78 @@ class BaseVerify(Verify):
                 return False, f"Type checking failed: {type_error}"
 
         return True, None
-    
-    def _check_field_constraints(self, tree: ast.AST, agent: Any) -> Tuple[bool, Optional[str]]:
+
+    def _check_field_constraints(self, tree: ast.AST, agent: Any) -> tuple[bool, str | None]:
         """
         Validate constant inputs to tool calls against Pydantic Field constraints.
-        
+
         Checks compile-time knowable values (constants, attribute access on input schema, etc.)
         against the tool's input schema Field validators (pattern, ge, le, min_length, etc.).
-        
+
         Args:
             tree: AST of generated code
             agent: Agent instance with tools
-            
+
         Returns:
             Tuple of (is_valid, error_message)
         """
         from pydantic import ValidationError
+
         from .cfg_builder import ConstantExtractor
-        
+
         # Build map of tool names to tool instances
         tool_map = {}
-        if hasattr(agent, 'tools'):
+        if hasattr(agent, "tools"):
             for tool in agent.tools:
-                if hasattr(tool, 'name'):
+                if hasattr(tool, "name"):
                     tool_map[tool.name] = tool
-        
+
         # Create constant extractor with agent input schema
-        input_schema = getattr(agent, 'input_schema', None) if agent else None
+        input_schema = getattr(agent, "input_schema", None) if agent else None
         extractor = ConstantExtractor(tree, input_schema)
-        
+
         # Find all function calls in the code
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
-            
+
             # Get function name
             func_name = None
             if isinstance(node.func, ast.Name):
                 func_name = node.func.id
             elif isinstance(node.func, ast.Attribute):
                 func_name = node.func.attr
-            
+
             if not func_name or func_name not in tool_map:
                 continue
-            
+
             tool = tool_map[func_name]
-            
+
             # Skip if tool has no input schema
-            if not hasattr(tool, 'input_schema') or not tool.input_schema:
+            if not hasattr(tool, "input_schema") or not tool.input_schema:
                 continue
-            
+
             # Extract constant keyword arguments
             const_kwargs = {}
             for keyword in node.keywords:
                 if keyword.arg is None:
                     continue  # **kwargs
-                
+
                 # Try to extract constant value
                 const_value, is_const = extractor.extract_constant(keyword.value)
                 if is_const and not isinstance(const_value, tuple):
                     # Skip marker tuples like ('__INPUT__', ...)
                     const_kwargs[keyword.arg] = const_value
-            
+
             # Also handle positional arguments if we can map them to parameter names
-            if hasattr(tool.input_schema, 'model_fields'):
+            if hasattr(tool.input_schema, "model_fields"):
                 param_names = list(tool.input_schema.model_fields.keys())
                 for i, arg in enumerate(node.args):
                     if i < len(param_names):
                         const_value, is_const = extractor.extract_constant(arg)
                         if is_const and not isinstance(const_value, tuple):
                             const_kwargs[param_names[i]] = const_value
-            
+
             # If we have any constant arguments, validate them
             if const_kwargs:
                 try:
@@ -344,33 +345,30 @@ class BaseVerify(Verify):
                     # Format error nicely
                     errors = []
                     for error in e.errors():
-                        field_path = '.'.join(str(x) for x in error['loc'])
-                        msg = error['msg']
+                        field_path = ".".join(str(x) for x in error["loc"])
+                        msg = error["msg"]
                         errors.append(f"{field_path}: {msg}")
-                    
-                    return False, (
-                        f"Tool '{func_name}' constant input validation failed:\n  " + 
-                        "\n  ".join(errors)
-                    )
+
+                    return False, (f"Tool '{func_name}' constant input validation failed:\n  " + "\n  ".join(errors))
                 except Exception as e:
                     # Other validation errors (e.g., type mismatches)
                     return False, f"Tool '{func_name}' constant input validation failed: {e}"
-        
+
         return True, None
-    
-    def _check_large_enums(self, agent: Any) -> Tuple[bool, Optional[str]]:
+
+    def _check_large_enums(self, agent: Any) -> tuple[bool, str | None]:
         """
         Check if agent has large enums (>100 values) and verify EM tool availability.
-        
+
         Large enums require the EM (Embedding) tool for semantic reduction.
-        
+
         Returns:
             Tuple of (has_error, error_message)
         """
         from .schema_utils import detect_large_enums
-        
+
         # Check agent input schema
-        if hasattr(agent, 'input_schema') and hasattr(agent.input_schema, 'model_json_schema'):
+        if hasattr(agent, "input_schema") and hasattr(agent.input_schema, "model_json_schema"):
             try:
                 input_schema = agent.input_schema.model_json_schema()
                 large_enums = detect_large_enums(input_schema, threshold=100)
@@ -385,9 +383,9 @@ class BaseVerify(Verify):
                         )
             except Exception:
                 pass  # Ignore schema extraction errors
-        
+
         # Check agent output schema
-        if hasattr(agent, 'output_schema') and hasattr(agent.output_schema, 'model_json_schema'):
+        if hasattr(agent, "output_schema") and hasattr(agent.output_schema, "model_json_schema"):
             try:
                 output_schema = agent.output_schema.model_json_schema()
                 large_enums = detect_large_enums(output_schema, threshold=100)
@@ -401,19 +399,19 @@ class BaseVerify(Verify):
                         )
             except Exception:
                 pass
-        
+
         # Check tool schemas
-        if hasattr(agent, 'tools'):
+        if hasattr(agent, "tools"):
             for tool in agent.tools:
                 # Check tool input schema
-                if hasattr(tool, 'input_schema') and hasattr(tool.input_schema, 'model_json_schema'):
+                if hasattr(tool, "input_schema") and hasattr(tool.input_schema, "model_json_schema"):
                     try:
                         tool_input_schema = tool.input_schema.model_json_schema()
                         large_enums = detect_large_enums(tool_input_schema, threshold=100)
                         if large_enums:
                             has_em = self._has_em_tool(agent)
                             if not has_em:
-                                tool_name = getattr(tool, 'name', 'unknown')
+                                tool_name = getattr(tool, "name", "unknown")
                                 enum_info = ", ".join([f"{path} ({size} values)" for path, size in large_enums])
                                 return True, (
                                     f"Tool '{tool_name}' input schema contains large enums requiring EM tool: {enum_info}. "
@@ -421,16 +419,16 @@ class BaseVerify(Verify):
                                 )
                     except Exception:
                         pass
-                
+
                 # Check tool output schema
-                if hasattr(tool, 'output_schema') and hasattr(tool.output_schema, 'model_json_schema'):
+                if hasattr(tool, "output_schema") and hasattr(tool.output_schema, "model_json_schema"):
                     try:
                         tool_output_schema = tool.output_schema.model_json_schema()
                         large_enums = detect_large_enums(tool_output_schema, threshold=100)
                         if large_enums:
                             has_em = self._has_em_tool(agent)
                             if not has_em:
-                                tool_name = getattr(tool, 'name', 'unknown')
+                                tool_name = getattr(tool, "name", "unknown")
                                 enum_info = ", ".join([f"{path} ({size} values)" for path, size in large_enums])
                                 return True, (
                                     f"Tool '{tool_name}' output schema contains large enums requiring EM tool: {enum_info}. "
@@ -438,19 +436,19 @@ class BaseVerify(Verify):
                                 )
                     except Exception:
                         pass
-        
+
         return False, None
-    
+
     def _has_em_tool(self, agent: Any) -> bool:
         """Check if agent has EM tool available."""
-        if not hasattr(agent, 'tools'):
+        if not hasattr(agent, "tools"):
             return False
-        
+
         for tool in agent.tools:
-            tool_name = getattr(tool, 'name', '').lower()
-            if tool_name == 'em' or 'embedding' in tool_name:
+            tool_name = getattr(tool, "name", "").lower()
+            if tool_name == "em" or "embedding" in tool_name:
                 return True
-        
+
         return False
 
 

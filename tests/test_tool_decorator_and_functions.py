@@ -7,9 +7,10 @@ This tests:
 3. Various type combinations (primitives, list, dict, BaseModel)
 """
 
+from typing import Any
+
 import pytest
 from pydantic import BaseModel
-from typing import Any
 
 from a1 import Agent, Tool, tool
 
@@ -201,7 +202,6 @@ class TestComplexScenarios:
 
     def test_nested_toolsets_with_functions(self):
         """Test ToolSet with raw functions."""
-        from a1 import ToolSet
 
         async def func1(x: int) -> int:
             """Function 1."""
@@ -229,9 +229,7 @@ class TestComplexScenarios:
         """Test that type hints are preserved in schema."""
 
         @tool()
-        async def typed_func(
-            text: str, count: int, ratio: float, enabled: bool, items: list[str]
-        ) -> dict[str, Any]:
+        async def typed_func(text: str, count: int, ratio: float, enabled: bool, items: list[str]) -> dict[str, Any]:
             """Function with various types."""
             return {"processed": True}
 

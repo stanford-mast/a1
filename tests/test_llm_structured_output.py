@@ -85,14 +85,14 @@ async def test_jit_llm_string_output():
     llm_tool = LLM("gpt-4.1-mini")
 
     # Agent that uses LLM to answer questions
-    InputSchema = create_model("Input", question=(str, Field(..., description="The question to answer")))
-    OutputSchema = create_model("Output", answer=(str, Field(..., description="The answer")))
+    input_schema = create_model("Input", question=(str, Field(..., description="The question to answer")))
+    output_schema = create_model("Output", answer=(str, Field(..., description="The answer")))
 
     agent = Agent(
         name="qa_agent",
         description="Answers questions using LLM",
-        input_schema=InputSchema,
-        output_schema=OutputSchema,
+        input_schema=input_schema,
+        output_schema=output_schema,
         tools=[llm_tool],
     )
 
@@ -118,12 +118,12 @@ async def test_jit_llm_structured_output():
     llm_tool = LLM("gpt-4.1-mini")
 
     # Agent that uses LLM to solve math with structured output
-    InputSchema = create_model("Input", problem=(str, Field(..., description="Math problem to solve")))
+    input_schema = create_model("Input", problem=(str, Field(..., description="Math problem to solve")))
 
     agent = Agent(
         name="structured_math_agent",
         description="Solves math problems with detailed explanations",
-        input_schema=InputSchema,
+        input_schema=input_schema,
         output_schema=MathResult,
         tools=[llm_tool],
     )
@@ -153,14 +153,14 @@ async def test_aot_llm_string_output():
     llm_tool = LLM("gpt-4.1-mini")
 
     # Agent that uses LLM for simple text generation
-    InputSchema = create_model("Input", topic=(str, Field(..., description="Topic to write about")))
-    OutputSchema = create_model("Output", text=(str, Field(..., description="Generated text")))
+    input_schema = create_model("Input", topic=(str, Field(..., description="Topic to write about")))
+    output_schema = create_model("Output", text=(str, Field(..., description="Generated text")))
 
     agent = Agent(
         name="writer_agent",
         description="Writes short text about a topic",
-        input_schema=InputSchema,
-        output_schema=OutputSchema,
+        input_schema=input_schema,
+        output_schema=output_schema,
         tools=[llm_tool],
     )
 
@@ -192,12 +192,12 @@ async def test_aot_llm_structured_output():
     llm_tool = LLM("gpt-4.1-mini")
 
     # Agent that parses math problems into structured format
-    InputSchema = create_model("Input", problem=(str, Field(..., description="Math problem in natural language")))
+    input_schema = create_model("Input", problem=(str, Field(..., description="Math problem in natural language")))
 
     agent = Agent(
         name="parser_agent",
         description="Parses math problems into structured format",
-        input_schema=InputSchema,
+        input_schema=input_schema,
         output_schema=ParsedProblem,
         tools=[llm_tool],
     )
@@ -232,14 +232,14 @@ async def test_llm_structured_with_calculator_tool(calculator_tool):
     # Agent that:
     # 1. Uses LLM with structured output to parse problem
     # 2. Uses calculator tool to compute result
-    InputSchema = create_model("Input", problem=(str, Field(..., description="Math problem")))
-    OutputSchema = create_model("Output", result=(float, Field(..., description="Computed result")))
+    input_schema = create_model("Input", problem=(str, Field(..., description="Math problem")))
+    output_schema = create_model("Output", result=(float, Field(..., description="Computed result")))
 
     agent = Agent(
         name="smart_calculator",
         description="Parses and solves math problems using LLM + calculator",
-        input_schema=InputSchema,
-        output_schema=OutputSchema,
+        input_schema=input_schema,
+        output_schema=output_schema,
         tools=[llm_tool, calculator_tool],
     )
 
@@ -266,14 +266,14 @@ async def test_aot_llm_robust_json_parsing():
 
     # This is the same scenario as test_aot_generated_function_calls_llm_with_tools
     # but with expectation that generated code uses output_schema for reliability
-    InputSchema = create_model("Input", problem=(str, Field(..., description="Complex math problem")))
-    OutputSchema = create_model("Output", answer=(str, Field(..., description="The answer as a string")))
+    input_schema = create_model("Input", problem=(str, Field(..., description="Complex math problem")))
+    output_schema = create_model("Output", answer=(str, Field(..., description="The answer as a string")))
 
     agent = Agent(
         name="robust_solver",
         description="Solves complex math problems reliably using structured LLM output",
-        input_schema=InputSchema,
-        output_schema=OutputSchema,
+        input_schema=input_schema,
+        output_schema=output_schema,
         tools=[llm_tool],
     )
 

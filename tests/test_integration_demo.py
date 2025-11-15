@@ -48,8 +48,8 @@ async def test_tool_decorator_and_function_passing():
     )
 
     print(f"\n✓ Created agent with {len(agent.tools)} tools")
-    for tool in agent.tools:
-        print(f"  - {tool.name}: {tool.description}")
+    for tool_item in agent.tools:
+        print(f"  - {tool_item.name}: {tool_item.description}")
 
     assert len(agent.tools) == 2
     assert any(t.name == "multiply" for t in agent.tools)

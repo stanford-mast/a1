@@ -45,7 +45,7 @@ def test_runtime_keep_updated_saves_on_context_change():
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / "runtime.json"
 
-        with Runtime.from_file(str(path), keep_updated=True) as runtime:
+        with Runtime.from_file(str(path), keep_updated=True):
             ctx = get_context("main")
             ctx.user("Hello")
 
@@ -65,14 +65,14 @@ def test_runtime_reload_session():
         path = Path(tmpdir) / "session.json"
 
         # Create session
-        with Runtime.from_file(str(path), keep_updated=True) as runtime:
+        with Runtime.from_file(str(path), keep_updated=True):
             ctx = get_context("main")
             ctx.user("Hello")
             ctx.assistant("Hi there")
             ctx.user("How are you?")
 
         # Reload session
-        with Runtime.from_file(str(path)) as runtime:
+        with Runtime.from_file(str(path)):
             ctx = get_context("main")
             assert len(ctx.messages) == 3
             assert ctx.messages[0].content == "Hello"
@@ -120,7 +120,7 @@ def test_runtime_without_keep_updated():
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / "runtime.json"
 
-        with Runtime.from_file(str(path), keep_updated=False) as runtime:
+        with Runtime.from_file(str(path), keep_updated=False):
             ctx = get_context("main")
             ctx.user("Hello")
 
@@ -152,7 +152,7 @@ def test_runtime_creates_parent_directories():
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / "subdir" / "nested" / "runtime.json"
 
-        with Runtime.from_file(str(path), keep_updated=True) as runtime:
+        with Runtime.from_file(str(path), keep_updated=True):
             ctx = get_context("main")
             ctx.user("Hello")
 
@@ -165,13 +165,13 @@ def test_runtime_persistence_with_tool_calls():
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / "runtime.json"
 
-        with Runtime.from_file(str(path), keep_updated=True) as runtime:
+        with Runtime.from_file(str(path), keep_updated=True):
             ctx = get_context("main")
             ctx.assistant("", tool_calls=[{"id": "1", "name": "calc", "arguments": "{}"}])
             ctx.tool("42", name="calc", tool_call_id="1")
 
         # Reload and verify
-        with Runtime.from_file(str(path)) as runtime:
+        with Runtime.from_file(str(path)):
             ctx = get_context("main")
             assert len(ctx.messages) == 2
             assert ctx.messages[0].tool_calls is not None

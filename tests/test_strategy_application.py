@@ -79,7 +79,7 @@ class TestStrategyApplications:
             execute=mock_execute,
         )
 
-        agent = Agent(
+        Agent(
             name="test_agent",
             description="Test agent",
             input_schema=SimpleInput,
@@ -124,7 +124,7 @@ class TestStrategyApplications:
             execute=mock_execute,
         )
 
-        agent = Agent(
+        Agent(
             name="test_agent",
             description="Test agent",
             input_schema=SimpleInput,
@@ -225,7 +225,7 @@ class TestRuntimeRespects:
             execute=mock_execute,
         )
 
-        agent = Agent(
+        Agent(
             name="test_agent",
             description="Test agent",
             input_schema=SimpleInput,
@@ -233,7 +233,7 @@ class TestRuntimeRespects:
             tools=[tool],
         )
 
-        runtime = Runtime()
+        Runtime()
 
         # Verify default strategy is used
         default_strategy = Strategy()

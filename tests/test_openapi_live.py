@@ -5,10 +5,10 @@ This test starts an actual HTTP server and tests ToolSet.from_openapi()
 with real HTTP requests.
 """
 
-import asyncio
-import pytest
-from multiprocessing import Process
 import time
+from multiprocessing import Process
+
+import pytest
 import uvicorn
 
 pytest.importorskip("fastapi", reason="FastAPI not installed")
@@ -21,6 +21,7 @@ from a1 import ToolSet
 
 class CalculateRequest(BaseModel):
     """Request model for calculation."""
+
     operation: str
     a: int
     b: int
@@ -69,12 +70,12 @@ def test_server():
     # Start server in background process
     server_process = Process(target=run_server, daemon=True)
     server_process.start()
-    
+
     # Wait for server to start
     time.sleep(2)
-    
+
     yield "http://127.0.0.1:8765"
-    
+
     # Cleanup
     server_process.terminate()
     server_process.join(timeout=5)
@@ -91,7 +92,7 @@ class TestOpenAPILiveIntegration:
 
         assert toolset is not None
         assert len(toolset.tools) > 0
-        
+
         tool_names = [tool.name for tool in toolset.tools]
         print(f"\n✓ Loaded {len(toolset.tools)} tools from OpenAPI server")
         print(f"  Tools: {tool_names}")
@@ -119,7 +120,7 @@ class TestOpenAPILiveIntegration:
         # Invoke the tool with actual HTTP request
         result = await calc_tool(operation="add", a=10, b=5)
 
-        print(f"  Request: add(10, 5)")
+        print("  Request: add(10, 5)")
         print(f"  Response: {result}")
 
         assert result is not None
@@ -175,7 +176,7 @@ class TestOpenAPILiveIntegration:
         # Invoke with path parameter
         result = await user_tool(user_id=42)
 
-        print(f"  Request: get_user(user_id=42)")
+        print("  Request: get_user(user_id=42)")
         print(f"  Response: {result}")
 
         assert result is not None
@@ -201,7 +202,7 @@ class TestOpenAPILiveIntegration:
         result2 = await calc_tool(operation="multiply", a=7, b=8)
         assert result2.data["result"] == 56
 
-        print(f"\n✓ Multiple operations work!")
+        print("\n✓ Multiple operations work!")
         print(f"  add(100, 50) = {result1.data['result']}")
         print(f"  multiply(7, 8) = {result2.data['result']}")
 
@@ -215,7 +216,7 @@ class TestOpenAPILiveIntegration:
         assert "Test Calculator API" in toolset.description
         assert "1.0.0" in toolset.description
 
-        print(f"\n✓ Toolset metadata:")
+        print("\n✓ Toolset metadata:")
         print(f"  Name: {toolset.name}")
         print(f"  Description: {toolset.description}")
 

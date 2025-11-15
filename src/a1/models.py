@@ -10,6 +10,7 @@ This module defines the fundamental building blocks:
 import inspect
 from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
 from types import NoneType
 from typing import Any, Optional, Union, get_type_hints
 from uuid import uuid4
@@ -289,21 +290,21 @@ def tool(name: str | None = None, description: str | None = None, is_terminal: b
                 default = param.default
             input_fields[param_name] = (annotation, default)
 
-        InputModel = create_model(f"{func_name}_Input", **input_fields)
+        input_model = create_model(f"{func_name}_Input", **input_fields)
 
         # Create output schema from return type
         if return_type in [Any, NoneType]:
-            OutputModel = create_model(f"{func_name}_Output", result=(Any, ...))
+            output_model = create_model(f"{func_name}_Output", result=(Any, ...))
         elif isinstance(return_type, type) and issubclass(return_type, BaseModel):
-            OutputModel = return_type
+            output_model = return_type
         else:
-            OutputModel = create_model(f"{func_name}_Output", result=(return_type, ...))
+            output_model = create_model(f"{func_name}_Output", result=(return_type, ...))
 
         return Tool(
             name=func_name,
             description=func_desc,
-            input_schema=InputModel,
-            output_schema=OutputModel,
+            input_schema=input_model,
+            output_schema=output_model,
             execute=func,
             is_terminal=is_terminal,
         )
@@ -581,12 +582,12 @@ class ToolSet(BaseModel):
 
                 # Create input schema
                 if input_fields:
-                    InputModel = create_model(f"{operation_id}_Input", **input_fields)
+                    input_model = create_model(f"{operation_id}_Input", **input_fields)
                 else:
-                    InputModel = create_model(f"{operation_id}_Input")
+                    input_model = create_model(f"{operation_id}_Input")
 
                 # Create output schema (simplified - just returns response)
-                OutputModel = create_model(
+                output_model = create_model(
                     f"{operation_id}_Output",
                     status_code=(int, ...),
                     data=(Any, ...),
@@ -627,8 +628,8 @@ class ToolSet(BaseModel):
                     Tool(
                         name=operation_id,
                         description=description or f"{method.upper()} {path}",
-                        input_schema=InputModel,
-                        output_schema=OutputModel,
+                        input_schema=input_model,
+                        output_schema=output_model,
                         execute=execute_fn,
                         is_terminal=False,
                     )
@@ -747,7 +748,7 @@ class Skill(BaseModel):
         full_content = "\n\n".join(all_content)
 
         # Chunk content for LLM processing
-        chunks = [full_content[i : i + chunk_size] for i in range(0, len(full_content), chunk_size)]
+        # chunks = [full_content[i : i + chunk_size] for i in range(0, len(full_content), chunk_size)]
 
         # Use LLM to generate skill content
         summarization_prompt = f"""
@@ -885,23 +886,23 @@ class Agent(BaseModel):
                 for param_name, param_type in hints.items():
                     input_fields[param_name] = (param_type, ...)
 
-                InputModel = create_model(f"{func_name}_Input", **input_fields)
+                input_model = create_model(f"{func_name}_Input", **input_fields)
 
                 # Create output schema from return type
                 if return_type == Any or return_type is None:
-                    OutputModel = create_model(f"{func_name}_Output", result=(Any, ...))
+                    output_model = create_model(f"{func_name}_Output", result=(Any, ...))
                 elif isinstance(return_type, type) and issubclass(return_type, BaseModel):
-                    OutputModel = return_type
+                    output_model = return_type
                 else:
-                    OutputModel = create_model(f"{func_name}_Output", result=(return_type, ...))
+                    output_model = create_model(f"{func_name}_Output", result=(return_type, ...))
 
                 # Create Tool
                 converted.append(
                     Tool(
                         name=func_name,
                         description=func_desc or f"Function: {func_name}",
-                        input_schema=InputModel,
-                        output_schema=OutputModel,
+                        input_schema=input_model,
+                        output_schema=output_model,
                         execute=item,
                         is_terminal=False,
                     )
@@ -1029,7 +1030,7 @@ class Agent(BaseModel):
         """
         # Import here to avoid hard dependency
         try:
-            from langchain.agents import AgentExecutor
+            from langchain.agents import AgentExecutor  # noqa: F401
         except ImportError:
             raise ImportError("langchain is required for from_langchain. Install with: pip install langchain")
 

@@ -83,14 +83,14 @@ class TestJITWithRealLLM:
     @pytest.mark.asyncio
     async def test_jit_generates_valid_code_structure(self, calculator_tool, llm_tool):
         """Test JIT generates code that passes verification."""
-        AgentInput = create_model("AgentInput", query=(str, Field(description="Math query")))
-        AgentOutput = create_model("AgentOutput", answer=(str, Field(description="Answer")))
+        agent_input = create_model("agent_input", query=(str, Field(description="Math query")))
+        agent_output = create_model("agent_output", answer=(str, Field(description="Answer")))
 
         agent = Agent(
             name="jit_math",
             description="Solve math problems using calculator and LLM",
-            input_schema=AgentInput,
-            output_schema=AgentOutput,
+            input_schema=agent_input,
+            output_schema=agent_output,
             tools=[calculator_tool, llm_tool],
         )
 
@@ -102,14 +102,14 @@ class TestJITWithRealLLM:
     @pytest.mark.asyncio
     async def test_jit_input_variables_accessible(self, calculator_tool):
         """Test that input variables are accessible in JIT mode."""
-        AgentInput = create_model("AgentInput", problem=(str, Field(description="Math problem")))
-        AgentOutput = create_model("AgentOutput", result=(str, Field(description="Result")))
+        agent_input = create_model("agent_input", problem=(str, Field(description="Math problem")))
+        agent_output = create_model("agent_output", result=(str, Field(description="Result")))
 
         agent = Agent(
             name="jit_with_input",
             description="JIT with input variables",
-            input_schema=AgentInput,
-            output_schema=AgentOutput,
+            input_schema=agent_input,
+            output_schema=agent_output,
             tools=[calculator_tool],
         )
 
@@ -129,14 +129,14 @@ class TestAOTWithRealLLM:
     @pytest.mark.asyncio
     async def test_aot_generates_compilable_code(self, calculator_tool, llm_tool):
         """Test AOT generates code that compiles."""
-        AgentInput = create_model("AgentInput", problem=(str, Field(description="Problem")))
-        AgentOutput = create_model("AgentOutput", answer=(str, Field(description="Answer")))
+        agent_input = create_model("agent_input", problem=(str, Field(description="Problem")))
+        agent_output = create_model("agent_output", answer=(str, Field(description="Answer")))
 
         agent = Agent(
             name="aot_math",
             description="AOT math solver with LLM and calculator",
-            input_schema=AgentInput,
-            output_schema=AgentOutput,
+            input_schema=agent_input,
+            output_schema=agent_output,
             tools=[calculator_tool, llm_tool],
         )
 
@@ -148,14 +148,14 @@ class TestAOTWithRealLLM:
     @pytest.mark.asyncio
     async def test_aot_code_passes_verification(self, calculator_tool, llm_tool):
         """Test that generated AOT code passes verification."""
-        AgentInput = create_model("AgentInput", task=(str, Field(description="Task")))
-        AgentOutput = create_model("AgentOutput", result=(str, Field(description="Result")))
+        agent_input = create_model("agent_input", task=(str, Field(description="Task")))
+        agent_output = create_model("agent_output", result=(str, Field(description="Result")))
 
         agent = Agent(
             name="verified_tool",
             description="Tool with verification",
-            input_schema=AgentInput,
-            output_schema=AgentOutput,
+            input_schema=agent_input,
+            output_schema=agent_output,
             tools=[calculator_tool, llm_tool],
         )
 
@@ -175,19 +175,19 @@ class TestIsLoopWithRealLLM:
     @pytest.mark.asyncio
     async def test_isloop_verifier_works(self, calculator_tool, llm_tool):
         """Test IsLoop verifier is available and functional."""
-        AgentInput = create_model("AgentInput", problem=(str, Field(description="Problem")))
-        AgentOutput = create_model("AgentOutput", answer=(str, Field(description="Answer")))
+        agent_input = create_model("agent_input", problem=(str, Field(description="Problem")))
+        agent_output = create_model("agent_output", answer=(str, Field(description="Answer")))
 
         agent = Agent(
             name="isloop_agent",
             description="Agent for IsLoop testing",
-            input_schema=AgentInput,
-            output_schema=AgentOutput,
+            input_schema=agent_input,
+            output_schema=agent_output,
             tools=[calculator_tool, llm_tool],
         )
 
         # Create runtime with IsLoop verifier
-        runtime = Runtime(verify=[IsLoop()])
+        Runtime(verify=[IsLoop()])
 
         # Agent should be valid
         assert agent is not None
@@ -200,9 +200,9 @@ while iteration < max_iterations:
         content=instruction if iteration == 0 else "Continue",
         tools=[calculator],
         context=context,
-        output_schema=AgentOutput
+        output_schema=agent_output
     )
-    if isinstance(result, AgentOutput):
+    if isinstance(result, agent_output):
         break
     iteration += 1
 """
@@ -384,14 +384,14 @@ class TestRuntimeModeIntegration:
     @pytest.mark.asyncio
     async def test_runtime_with_multiple_tools(self, calculator_tool, llm_tool):
         """Test runtime handling multiple tools."""
-        AgentInput = create_model("AgentInput", query=(str, Field(description="Query")))
-        AgentOutput = create_model("AgentOutput", result=(str, Field(description="Result")))
+        agent_input = create_model("agent_input", query=(str, Field(description="Query")))
+        agent_output = create_model("agent_output", result=(str, Field(description="Result")))
 
-        agent = Agent(
+        Agent(
             name="multi_tool_agent",
             description="Agent with calculator and LLM",
-            input_schema=AgentInput,
-            output_schema=AgentOutput,
+            input_schema=agent_input,
+            output_schema=agent_output,
             tools=[calculator_tool, llm_tool],
         )
 
@@ -404,14 +404,14 @@ class TestRuntimeModeIntegration:
     @pytest.mark.asyncio
     async def test_runtime_caching_behavior(self, calculator_tool):
         """Test runtime caching behavior."""
-        AgentInput = create_model("AgentInput", task=(str, Field(description="Task")))
-        AgentOutput = create_model("AgentOutput", result=(str, Field(description="Result")))
+        agent_input = create_model("agent_input", task=(str, Field(description="Task")))
+        agent_output = create_model("agent_output", result=(str, Field(description="Result")))
 
-        agent = Agent(
+        Agent(
             name="cached_agent",
             description="Agent with caching",
-            input_schema=AgentInput,
-            output_schema=AgentOutput,
+            input_schema=agent_input,
+            output_schema=agent_output,
             tools=[calculator_tool],
         )
 

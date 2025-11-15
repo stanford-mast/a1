@@ -27,9 +27,9 @@ if env_path.exists():
 else:
     print(f"⚠ .env not found at {env_path}")
 
-from pydantic import BaseModel
+from pydantic import BaseModel  # noqa: E402
 
-from a1 import LLM, Agent, tool
+from a1 import LLM, Agent, tool  # noqa: E402
 
 
 # Define a simple tool
