@@ -141,14 +141,14 @@ async def test_runtime_jit_simple_agent(calculator_tool):
     llm_tool = LLM("gpt-4.1-mini")
 
     # Create agent with proper Pydantic models
-    InputSchema = create_model("Input", query=(str, Field(..., description="The calculation query")))
-    OutputSchema = create_model("Output", result=(str, Field(..., description="The calculation result")))
+    input_schema = create_model("Input", query=(str, Field(..., description="The calculation query")))
+    output_schema = create_model("Output", result=(str, Field(..., description="The calculation result")))
 
     agent = Agent(
         name="calculator_agent",
         description="An agent that performs calculations",
-        input_schema=InputSchema,
-        output_schema=OutputSchema,
+        input_schema=input_schema,
+        output_schema=output_schema,
         tools=[calculator_tool, llm_tool],
     )
 
@@ -182,14 +182,14 @@ async def test_runtime_aot_with_isloop(calculator_tool, temp_cache_dir):
     llm_tool = LLM("gpt-4.1-mini")
 
     # Create agent with proper Pydantic models
-    InputSchema = create_model("Input", task=(str, Field(..., description="The task to perform")))
-    OutputSchema = create_model("Output", result=(str, Field(..., description="The task result")))
+    input_schema = create_model("Input", task=(str, Field(..., description="The task to perform")))
+    output_schema = create_model("Output", result=(str, Field(..., description="The task result")))
 
     agent = Agent(
         name="loop_agent",
         description="An agent that loops until done",
-        input_schema=InputSchema,
-        output_schema=OutputSchema,
+        input_schema=input_schema,
+        output_schema=output_schema,
         tools=[calculator_tool, llm_tool],
     )
 
@@ -204,8 +204,8 @@ async def test_runtime_aot_with_isloop(calculator_tool, temp_cache_dir):
 
     # Verify the tool was created successfully
     assert compiled_tool.description == "An agent that loops until done"
-    assert compiled_tool.input_schema == InputSchema
-    assert compiled_tool.output_schema == OutputSchema
+    assert compiled_tool.input_schema == input_schema
+    assert compiled_tool.output_schema == output_schema
 
     # TODO: Full execution test requires fixing LLM tool choice handling
     # For now, we've verified that:
@@ -226,16 +226,16 @@ async def test_runtime_aot_without_isloop(calculator_tool, temp_cache_dir):
     llm_tool = LLM("gpt-4.1-mini")
 
     # Create simple agent
-    InputSchema = create_model(
+    input_schema = create_model(
         "Input", a=(int, Field(..., description="First number")), b=(int, Field(..., description="Second number"))
     )
-    OutputSchema = create_model("Output", sum=(int, Field(..., description="Sum of a and b")))
+    output_schema = create_model("Output", sum=(int, Field(..., description="Sum of a and b")))
 
     agent = Agent(
         name="simple_agent",
         description="An agent that adds two numbers",
-        input_schema=InputSchema,
-        output_schema=OutputSchema,
+        input_schema=input_schema,
+        output_schema=output_schema,
         tools=[calculator_tool, llm_tool],
     )
 
@@ -262,14 +262,14 @@ async def test_runtime_aot_with_caching(calculator_tool, temp_cache_dir):
     set_runtime(runtime)
     llm_tool = LLM("gpt-4.1-mini")
 
-    InputSchema = create_model("Input", query=(str, Field(..., description="The query")))
-    OutputSchema = create_model("Output", answer=(str, Field(..., description="The answer")))
+    input_schema = create_model("Input", query=(str, Field(..., description="The query")))
+    output_schema = create_model("Output", answer=(str, Field(..., description="The answer")))
 
     agent = Agent(
         name="cached_agent",
         description="An agent for testing caching",
-        input_schema=InputSchema,
-        output_schema=OutputSchema,
+        input_schema=input_schema,
+        output_schema=output_schema,
         tools=[calculator_tool, llm_tool],
     )
 
@@ -301,14 +301,14 @@ async def test_context_parameter_in_generated_code(calculator_tool, temp_cache_d
     set_runtime(runtime)
     llm_tool = LLM("gpt-4.1-mini")
 
-    InputSchema = create_model("Input", task=(str, Field(..., description="The task")))
-    OutputSchema = create_model("Output", result=(str, Field(..., description="The result")))
+    input_schema = create_model("Input", task=(str, Field(..., description="The task")))
+    output_schema = create_model("Output", result=(str, Field(..., description="The result")))
 
     agent = Agent(
         name="context_agent",
         description="Agent to test context parameter",
-        input_schema=InputSchema,
-        output_schema=OutputSchema,
+        input_schema=input_schema,
+        output_schema=output_schema,
         tools=[calculator_tool, llm_tool],
     )
 
@@ -345,14 +345,14 @@ async def test_agent_aot_and_jit_convenience_methods(calculator_tool, temp_cache
 
     llm_tool = LLM("gpt-4.1-mini")
 
-    InputSchema = create_model("Input", x=(int, Field(..., description="Number to process")))
-    OutputSchema = create_model("Output", result=(int, Field(..., description="Processed number")))
+    input_schema = create_model("Input", x=(int, Field(..., description="Number to process")))
+    output_schema = create_model("Output", result=(int, Field(..., description="Processed number")))
 
     agent = Agent(
         name="convenience_agent",
         description="Agent for testing convenience methods",
-        input_schema=InputSchema,
-        output_schema=OutputSchema,
+        input_schema=input_schema,
+        output_schema=output_schema,
         tools=[calculator_tool, llm_tool],
     )
 
@@ -386,7 +386,7 @@ async def test_tool_execute_convenience_method(calculator_tool):
 async def test_runtime_context_manager(calculator_tool):
     """Test using Runtime as a context manager."""
     with Runtime() as runtime:
-        llm_tool = LLM("gpt-4.1-mini")
+        LLM("gpt-4.1-mini")
 
         # Should be able to execute within context
         result = await runtime.execute(calculator_tool, a=7, b=8, operation="add")
@@ -446,14 +446,14 @@ async def test_jit_multiple_calls_accumulate_context(calculator_tool):
     llm_tool = LLM("gpt-4.1-mini")
 
     # Create agent
-    InputSchema = create_model("Input", query=(str, Field(..., description="Math query")))
-    OutputSchema = create_model("Output", answer=(str, Field(..., description="The answer")))
+    input_schema = create_model("Input", query=(str, Field(..., description="Math query")))
+    output_schema = create_model("Output", answer=(str, Field(..., description="The answer")))
 
     agent = Agent(
         name="math_agent_multi",
         description="Answers math questions",
-        input_schema=InputSchema,
-        output_schema=OutputSchema,
+        input_schema=input_schema,
+        output_schema=output_schema,
         tools=[calculator_tool, llm_tool],
     )
 
@@ -462,7 +462,7 @@ async def test_jit_multiple_calls_accumulate_context(calculator_tool):
     initial_message_count = len(ctx.messages)
 
     # First JIT call
-    result1 = await runtime.jit(agent, query="What is 10 + 5?")
+    await runtime.jit(agent, query="What is 10 + 5?")
     count_after_first = len(ctx.messages)
 
     # Context should grow
@@ -471,7 +471,7 @@ async def test_jit_multiple_calls_accumulate_context(calculator_tool):
     assert len(first_user_msgs) >= 1
 
     # Second JIT call
-    result2 = await runtime.jit(agent, query="What is 20 * 3?")
+    await runtime.jit(agent, query="What is 20 * 3?")
     count_after_second = len(ctx.messages)
 
     # Context should grow again
@@ -512,14 +512,14 @@ async def test_jit_generated_code_calls_llm_with_tools(calculator_tool):
     set_runtime(runtime)
     llm_tool = LLM("gpt-4.1-mini")
 
-    InputSchema = create_model("Input", task=(str, Field(..., description="Task for LLM to solve")))
-    OutputSchema = create_model("Output", result=(str, Field(..., description="Final result")))
+    input_schema = create_model("Input", task=(str, Field(..., description="Task for LLM to solve")))
+    output_schema = create_model("Output", result=(str, Field(..., description="Final result")))
 
     agent = Agent(
         name="llm_orchestrator",
         description="Uses LLM to decide on calculations",
-        input_schema=InputSchema,
-        output_schema=OutputSchema,
+        input_schema=input_schema,
+        output_schema=output_schema,
         tools=[calculator_tool, llm_tool],  # Both available to generated code
     )
 
@@ -554,14 +554,14 @@ async def test_aot_generated_function_calls_llm_with_tools(calculator_tool):
     set_runtime(runtime)
     llm_tool = LLM("gpt-4.1-mini")
 
-    InputSchema = create_model("Input", problem=(str, Field(..., description="Math problem")))
-    OutputSchema = create_model("Output", answer=(str, Field(..., description="The answer")))
+    input_schema = create_model("Input", problem=(str, Field(..., description="Math problem")))
+    output_schema = create_model("Output", answer=(str, Field(..., description="The answer")))
 
     agent = Agent(
         name="math_solver_aot",
         description="Solves math problems using tools",
-        input_schema=InputSchema,
-        output_schema=OutputSchema,
+        input_schema=input_schema,
+        output_schema=output_schema,
         tools=[calculator_tool, llm_tool],
     )
 
@@ -598,14 +598,14 @@ async def test_output_schema_transformations(calculator_tool):
     llm_tool = LLM("gpt-4.1-mini")
 
     # Case 1: Single-field schema should auto-wrap
-    InputSchema1 = create_model("Input1", value=(str, Field(..., description="Input value")))
-    OutputSchema1 = create_model("Output1", result=(str, Field(..., description="Result")))
+    input_schema1 = create_model("Input1", value=(str, Field(..., description="Input value")))
+    output_schema1 = create_model("Output1", result=(str, Field(..., description="Result")))
 
     agent1 = Agent(
         name="wrapper_agent",
         description="Tests output wrapping",
-        input_schema=InputSchema1,
-        output_schema=OutputSchema1,
+        input_schema=input_schema1,
+        output_schema=output_schema1,
         tools=[llm_tool],
     )
 
@@ -635,14 +635,14 @@ async def test_input_schema_validation(calculator_tool):
     set_runtime(runtime)
     llm_tool = LLM("gpt-4.1-mini")
 
-    InputSchema = create_model("Input", count=(int, Field(..., description="A number")))
-    OutputSchema = create_model("Output", result=(str, Field(..., description="Result")))
+    input_schema = create_model("Input", count=(int, Field(..., description="A number")))
+    output_schema = create_model("Output", result=(str, Field(..., description="Result")))
 
     agent = Agent(
         name="validation_agent",
         description="Tests input validation",
-        input_schema=InputSchema,
-        output_schema=OutputSchema,
+        input_schema=input_schema,
+        output_schema=output_schema,
         tools=[llm_tool],
     )
 

@@ -428,7 +428,7 @@ Return ONLY a number between {self.min} and {self.max} (no explanation, no units
         # Run async computation - handle both sync and async contexts
         try:
             # Check if we're in an async context
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             # We are in an async context, run in thread pool
             import concurrent.futures
 

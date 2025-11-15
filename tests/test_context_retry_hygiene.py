@@ -43,7 +43,7 @@ async def test_failed_attempts_dont_pollute_main_context():
 
     # Execute agent (might fail/retry internally)
     try:
-        result = await runtime.jit(agent, value=42)
+        await runtime.jit(agent, value=42)
 
         # Check context - should only have user input + assistant output
         # NOT any intermediate failures
@@ -106,7 +106,7 @@ async def test_multiple_jit_calls_accumulate_correctly():
     for i in range(3):
         try:
             await runtime.jit(agent, value=i)
-        except:
+        except Exception:
             pass  # Some calls might fail due to LLM variability
 
     ctx = get_context("main")

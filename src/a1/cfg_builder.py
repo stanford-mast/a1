@@ -390,10 +390,10 @@ class CFGBuilder(ast.NodeVisitor):
 class ConstantExtractor:
     """
     Extract compile-time knowable constant values from AST nodes.
-    
+
     Traces through variable assignments, attribute access, and simple expressions
     to determine if a value is constant at compile time.
-    
+
     Handles:
     - Literals (42, "hello", True, None)
     - Variables assigned to constants
@@ -402,11 +402,11 @@ class ConstantExtractor:
     - Simple arithmetic on constants
     - List/dict/set literals with constant elements
     """
-    
+
     def __init__(self, tree: ast.AST, input_schema=None):
         """
         Initialize constant extractor.
-        
+
         Args:
             tree: AST of the code to analyze
             input_schema: Optional Pydantic model representing function input
@@ -414,11 +414,11 @@ class ConstantExtractor:
         """
         self.tree = tree
         self.input_schema = input_schema
-        
+
         # Build variable assignment map: var_name -> value_node
         self.assignments: dict[str, ast.AST] = {}
         self._build_assignment_map(tree)
-    
+
     def _build_assignment_map(self, node: ast.AST):
         """Build map of variable assignments in the code."""
         for stmt in ast.walk(node):
@@ -427,19 +427,19 @@ class ConstantExtractor:
                 for target in stmt.targets:
                     if isinstance(target, ast.Name):
                         self.assignments[target.id] = stmt.value
-            
+
             # Annotated assignment: x: int = value
             elif isinstance(stmt, ast.AnnAssign):
                 if isinstance(stmt.target, ast.Name) and stmt.value:
                     self.assignments[stmt.target.id] = stmt.value
-    
+
     def extract_constant(self, node: ast.AST) -> tuple[Any, bool]:
         """
         Extract constant value from AST node if knowable at compile time.
-        
+
         Args:
             node: AST node to extract value from
-        
+
         Returns:
             Tuple of (value, is_constant)
             - value: The constant value (None if not constant)
@@ -448,66 +448,66 @@ class ConstantExtractor:
         # Direct constants
         if isinstance(node, ast.Constant):
             return node.value, True
-        
+
         # Python <3.8 compatibility - these are deprecated but still used in some contexts
         # Check for Constant first (preferred), then fall back to legacy nodes
-        if hasattr(ast, 'Num') and isinstance(node, ast.Num):
+        if hasattr(ast, "Num") and isinstance(node, ast.Num):
             return node.n, True
-        if hasattr(ast, 'Str') and isinstance(node, ast.Str):
+        if hasattr(ast, "Str") and isinstance(node, ast.Str):
             return node.s, True
-        if hasattr(ast, 'NameConstant') and isinstance(node, ast.NameConstant):
+        if hasattr(ast, "NameConstant") and isinstance(node, ast.NameConstant):
             return node.value, True
-        if hasattr(ast, 'Bytes') and isinstance(node, ast.Bytes):
+        if hasattr(ast, "Bytes") and isinstance(node, ast.Bytes):
             return node.s, True
-        
+
         # Variable reference - look up assignment
         if isinstance(node, ast.Name):
             var_name = node.id
-            
+
             # Check if it's a function parameter referencing input schema
-            if var_name == 'input' and self.input_schema:
+            if var_name == "input" and self.input_schema:
                 # Return marker that this is the input object
-                return ('__INPUT__', var_name), True
-            
+                return ("__INPUT__", var_name), True
+
             # Look up variable assignment
             if var_name in self.assignments:
                 return self.extract_constant(self.assignments[var_name])
-            
+
             # Unknown variable
             return None, False
-        
+
         # Attribute access: obj.field.subfield
         if isinstance(node, ast.Attribute):
             base_value, is_const = self.extract_constant(node.value)
-            
+
             if not is_const:
                 return None, False
-            
+
             # Handle access on input schema
-            if isinstance(base_value, tuple) and base_value[0] == '__INPUT__':
+            if isinstance(base_value, tuple) and base_value[0] == "__INPUT__":
                 # This is input.field - check if we can resolve it
-                if self.input_schema and hasattr(self.input_schema, 'model_fields'):
+                if self.input_schema and hasattr(self.input_schema, "model_fields"):
                     field_name = node.attr
                     if field_name in self.input_schema.model_fields:
                         field_info = self.input_schema.model_fields[field_name]
                         # If field has a default value, return it
-                        if hasattr(field_info, 'default') and field_info.default is not ...:
+                        if hasattr(field_info, "default") and field_info.default is not ...:
                             return field_info.default, True
                         # Mark as input.field access (compile-time knowable structure)
-                        return ('__INPUT_FIELD__', base_value[1], node.attr), True
-                
-                return ('__INPUT_FIELD__', base_value[1], node.attr), True
-            
+                        return ("__INPUT_FIELD__", base_value[1], node.attr), True
+
+                return ("__INPUT_FIELD__", base_value[1], node.attr), True
+
             # Handle nested attribute access on constants
             if isinstance(base_value, dict):
                 # Dictionary attribute access
                 if node.attr in base_value:
                     return base_value[node.attr], True
                 return None, False
-            
+
             # Can't resolve attribute on non-dict constant
             return None, False
-        
+
         # List literal: [1, 2, 3]
         if isinstance(node, ast.List):
             elements = []
@@ -517,7 +517,7 @@ class ConstantExtractor:
                     return None, False
                 elements.append(val)
             return elements, True
-        
+
         # Tuple literal: (1, 2, 3)
         if isinstance(node, ast.Tuple):
             elements = []
@@ -527,7 +527,7 @@ class ConstantExtractor:
                     return None, False
                 elements.append(val)
             return tuple(elements), True
-        
+
         # Set literal: {1, 2, 3}
         if isinstance(node, ast.Set):
             elements = []
@@ -537,31 +537,31 @@ class ConstantExtractor:
                     return None, False
                 elements.append(val)
             return set(elements), True
-        
+
         # Dict literal: {'a': 1, 'b': 2}
         if isinstance(node, ast.Dict):
             result = {}
             for k, v in zip(node.keys, node.values):
                 if k is None:  # **kwargs in dict
                     return None, False
-                
+
                 key_val, key_const = self.extract_constant(k)
                 val_val, val_const = self.extract_constant(v)
-                
+
                 if not (key_const and val_const):
                     return None, False
-                
+
                 result[key_val] = val_val
             return result, True
-        
+
         # Binary operations on constants: 2 + 3, "hello" + "world"
         if isinstance(node, ast.BinOp):
             left, left_const = self.extract_constant(node.left)
             right, right_const = self.extract_constant(node.right)
-            
+
             if not (left_const and right_const):
                 return None, False
-            
+
             # Evaluate simple operations
             try:
                 if isinstance(node.op, ast.Add):
@@ -577,20 +577,20 @@ class ConstantExtractor:
                 elif isinstance(node.op, ast.Mod):
                     return left % right, True
                 elif isinstance(node.op, ast.Pow):
-                    return left ** right, True
+                    return left**right, True
             except Exception:
                 # Evaluation failed
                 return None, False
-            
+
             return None, False
-        
+
         # Unary operations: -5, +5, not True
         if isinstance(node, ast.UnaryOp):
             operand, is_const = self.extract_constant(node.operand)
-            
+
             if not is_const:
                 return None, False
-            
+
             try:
                 if isinstance(node.op, ast.UAdd):
                     return +operand, True
@@ -602,22 +602,22 @@ class ConstantExtractor:
                     return ~operand, True
             except Exception:
                 return None, False
-            
+
             return None, False
-        
+
         # Subscript: list[0], dict['key']
         if isinstance(node, ast.Subscript):
             value, value_const = self.extract_constant(node.value)
             index, index_const = self.extract_constant(node.slice)
-            
+
             if not (value_const and index_const):
                 return None, False
-            
+
             try:
                 return value[index], True
             except Exception:
                 return None, False
-        
+
         # f-string (JoinedStr) - can be constant if all parts are constant
         if isinstance(node, ast.JoinedStr):
             parts = []
@@ -634,8 +634,8 @@ class ConstantExtractor:
                     parts.append(str(val))
                 else:
                     return None, False
-            return ''.join(parts), True
-        
+            return "".join(parts), True
+
         # Not a compile-time constant
         return None, False
 

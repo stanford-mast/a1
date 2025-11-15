@@ -69,14 +69,14 @@ class TestJITMode:
     @pytest.mark.asyncio
     async def test_jit_simple_tool_call(self, calculator_tool):
         """Test JIT can generate and execute simple tool calls."""
-        AgentInput = create_model("AgentInput", query=(str, Field(description="Math query")))
-        AgentOutput = create_model("AgentOutput", answer=(str, Field(description="Result")))
+        agent_input = create_model("agent_input", query=(str, Field(description="Math query")))
+        agent_output = create_model("agent_output", answer=(str, Field(description="Result")))
 
-        agent = Agent(
+        Agent(
             name="simple_math",
             description="Answer simple math questions",
-            input_schema=AgentInput,
-            output_schema=AgentOutput,
+            input_schema=agent_input,
+            output_schema=agent_output,
             tools=[calculator_tool],
         )
 
@@ -102,14 +102,14 @@ class TestJITMode:
             is_terminal=False,
         )
 
-        AgentInput = create_model("AgentInput", task=(str, Field(description="Task")))
-        AgentOutput = create_model("AgentOutput", result=(str, Field(description="Result")))
+        agent_input = create_model("agent_input", task=(str, Field(description="Task")))
+        agent_output = create_model("agent_output", result=(str, Field(description="Result")))
 
-        agent = Agent(
+        Agent(
             name="multi_tool",
             description="Use multiple tools",
-            input_schema=AgentInput,
-            output_schema=AgentOutput,
+            input_schema=agent_input,
+            output_schema=agent_output,
             tools=[calculator_tool, string_tool],
         )
 
@@ -134,14 +134,14 @@ class TestAOTMode:
     @pytest.mark.asyncio
     async def test_aot_simple_tool_call(self, calculator_tool):
         """Test AOT can compile and execute simple tool calls."""
-        AgentInput = create_model("AgentInput", problem=(str, Field(description="Problem to solve")))
-        AgentOutput = create_model("AgentOutput", answer=(str, Field(description="Answer")))
+        agent_input = create_model("agent_input", problem=(str, Field(description="Problem to solve")))
+        agent_output = create_model("agent_output", answer=(str, Field(description="Answer")))
 
-        agent = Agent(
+        Agent(
             name="aot_math",
             description="AOT math solver",
-            input_schema=AgentInput,
-            output_schema=AgentOutput,
+            input_schema=agent_input,
+            output_schema=agent_output,
             tools=[calculator_tool],
         )
 
@@ -154,14 +154,14 @@ class TestAOTMode:
     @pytest.mark.asyncio
     async def test_aot_with_caching(self, calculator_tool):
         """Test AOT with caching enabled."""
-        AgentInput = create_model("AgentInput", task=(str, Field(description="Task")))
-        AgentOutput = create_model("AgentOutput", result=(str, Field(description="Result")))
+        agent_input = create_model("agent_input", task=(str, Field(description="Task")))
+        agent_output = create_model("agent_output", result=(str, Field(description="Result")))
 
-        agent = Agent(
+        Agent(
             name="cached_tool",
             description="Tool with caching",
-            input_schema=AgentInput,
-            output_schema=AgentOutput,
+            input_schema=agent_input,
+            output_schema=agent_output,
             tools=[calculator_tool],
         )
 
@@ -287,18 +287,18 @@ class TestStateManagement:
     @pytest.mark.asyncio
     async def test_input_variables_in_jit(self, calculator_tool):
         """Test input variables are available in JIT execution."""
-        AgentInput = create_model("AgentInput", query=(str, Field(description="Query")))
-        AgentOutput = create_model("AgentOutput", result=(str, Field(description="Result")))
+        agent_input = create_model("agent_input", query=(str, Field(description="Query")))
+        agent_output = create_model("agent_output", result=(str, Field(description="Result")))
 
         agent = Agent(
             name="jit_with_input",
             description="JIT with input variables",
-            input_schema=AgentInput,
-            output_schema=AgentOutput,
+            input_schema=agent_input,
+            output_schema=agent_output,
             tools=[calculator_tool],
         )
 
-        runtime = Runtime()
+        Runtime()
 
         # In real JIT, the input would be available as a variable
         # Here we just verify the agent can be created
@@ -308,18 +308,18 @@ class TestStateManagement:
     @pytest.mark.asyncio
     async def test_schema_classes_in_environment(self, calculator_tool):
         """Test that schema classes are available in executor environment."""
-        AgentInput = create_model("AgentInput", x=(int, Field(description="X")))
-        AgentOutput = create_model("AgentOutput", y=(int, Field(description="Y")))
+        agent_input = create_model("agent_input", x=(int, Field(description="X")))
+        agent_output = create_model("agent_output", y=(int, Field(description="Y")))
 
         agent = Agent(
             name="schema_test",
             description="Test schema availability",
-            input_schema=AgentInput,
-            output_schema=AgentOutput,
+            input_schema=agent_input,
+            output_schema=agent_output,
             tools=[calculator_tool],
         )
 
-        runtime = Runtime()
+        Runtime()
 
         # Verify schemas exist
         assert hasattr(agent, "input_schema")
@@ -440,16 +440,20 @@ class TestMixedModeIntegration:
 
     def test_tool_available_in_multiple_modes(self, calculator_tool):
         """Test same tool works in JIT, AOT, and IsLoop."""
-        AgentInput = create_model("AgentInput", task=(str, Field(description="Task")))
-        AgentOutput = create_model("AgentOutput", result=(str, Field(description="Result")))
+        agent_input = create_model("agent_input", task=(str, Field(description="Task")))
+        agent_output = create_model("agent_output", result=(str, Field(description="Result")))
 
         # Same tool for all modes
-        agent_jit = Agent(name="jit_calc", input_schema=AgentInput, output_schema=AgentOutput, tools=[calculator_tool])
+        agent_jit = Agent(
+            name="jit_calc", input_schema=agent_input, output_schema=agent_output, tools=[calculator_tool]
+        )
 
-        agent_aot = Agent(name="aot_calc", input_schema=AgentInput, output_schema=AgentOutput, tools=[calculator_tool])
+        agent_aot = Agent(
+            name="aot_calc", input_schema=agent_input, output_schema=agent_output, tools=[calculator_tool]
+        )
 
         agent_loop = Agent(
-            name="loop_calc", input_schema=AgentInput, output_schema=AgentOutput, tools=[calculator_tool]
+            name="loop_calc", input_schema=agent_input, output_schema=agent_output, tools=[calculator_tool]
         )
 
         # All should have the tool

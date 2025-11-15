@@ -148,44 +148,44 @@ def generate_nested_pydantic_classes(schema: dict[str, Any], class_prefix: str, 
             field_args = []
             default_value = "..." if is_required else "None"
             field_args.append(default_value)
-            
+
             # Add description
             if prop_desc:
                 # Escape quotes in description
                 escaped_desc = prop_desc.replace('"', '\\"')
                 field_args.append(f'description="{escaped_desc}"')
-            
+
             # Add validators from JSON schema
             if "pattern" in prop_schema:
                 pattern = prop_schema["pattern"]
                 # Escape backslashes and quotes for raw string
                 escaped_pattern = pattern.replace("\\", "\\\\")
                 field_args.append(f"pattern=r'{escaped_pattern}'")
-            
+
             if "minimum" in prop_schema:
                 field_args.append(f"ge={prop_schema['minimum']}")
-            
+
             if "maximum" in prop_schema:
                 field_args.append(f"le={prop_schema['maximum']}")
-            
+
             if "exclusiveMinimum" in prop_schema:
                 field_args.append(f"gt={prop_schema['exclusiveMinimum']}")
-            
+
             if "exclusiveMaximum" in prop_schema:
                 field_args.append(f"lt={prop_schema['exclusiveMaximum']}")
-            
+
             if "minLength" in prop_schema:
                 field_args.append(f"min_length={prop_schema['minLength']}")
-            
+
             if "maxLength" in prop_schema:
                 field_args.append(f"max_length={prop_schema['maxLength']}")
-            
+
             if "minItems" in prop_schema:
                 field_args.append(f"min_length={prop_schema['minItems']}")
-            
+
             if "maxItems" in prop_schema:
                 field_args.append(f"max_length={prop_schema['maxItems']}")
-            
+
             # Generate field definition
             if field_args:
                 field_def = f"Field({', '.join(field_args)})"

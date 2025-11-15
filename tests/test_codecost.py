@@ -101,7 +101,7 @@ result = await unknown_tool(param="value")
         """Test that branching takes maximum cost path."""
         code = """
 if condition:
-    await expensive_tool()  
+    await expensive_tool()
 else:
     await cheap_tool()
 """
@@ -265,10 +265,10 @@ while iteration < max_iterations:
         tools=[calculator],
         output_schema=Output
     )
-    
+
     if isinstance(llm_output, Output):
         break
-    
+
     calc_result = await calculator(a=llm_output.a, b=llm_output.b, operation="add")
     iteration += 1
 """
@@ -386,10 +386,10 @@ while iteration < max_iterations:
         context=context,
         output_schema=AgentOutput
     )
-    
+
     if isinstance(output, AgentOutput):
         break
-    
+
     iteration += 1
 """
         cost = compute_code_cost(code, {"llm_groq_openai_gpt_oss_20b": 10.0, "calculator": 1.0})
@@ -405,7 +405,7 @@ analysis = await llm(prompt="Analyze this problem")
 # Step 2: Generate solution
 for approach in num_approaches:
     solution = await llm(prompt=f"Try approach {approach}")
-    
+
     # Step 3: Evaluate solution
     score = await evaluator(solution=solution)
 """

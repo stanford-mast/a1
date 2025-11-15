@@ -359,9 +359,9 @@ class Runtime:
                         )
 
                         # Concatenate definitions with fixed code for validation
-                        full_code_for_verification = (
-                            definition_code + "\n" + fixed_code if definition_code else fixed_code
-                        )
+                        # full_code_for_verification = (
+                        #     definition_code + "\n" + fixed_code if definition_code else fixed_code
+                        # )
 
                         # Validate with all verifiers (including IsFunction for AOT)
                         all_valid = True
@@ -681,7 +681,7 @@ class Runtime:
                         # Clean up on exception
                         try:
                             clean_schemas_from_executor_state(self.executor, agent)
-                        except:
+                        except Exception:
                             pass
                         continue  # Try next candidate
 
@@ -827,7 +827,7 @@ class Runtime:
                     wrap_code_body_as_function,
                 )
 
-                tree = ast.parse(generated_code)
+                ast.parse(generated_code)  # Validate syntax
                 func_defs = extract_non_stub_async_functions(generated_code)
 
                 if func_defs:
@@ -928,7 +928,7 @@ try:
 except NameError:
     try:
         context = get_context("main")
-    except:
+    except Exception:
         context = no_context()
 
 # Build instruction
@@ -1109,7 +1109,7 @@ def new_context(label: str = "intermediate", branch_from: Optional["Context"] = 
         return result
 
     # Find next available suffix for this label
-    existing_keys = [k for k in runtime.CTX.keys() if k.startswith(f"{label}_")]
+    # existing_keys = [k for k in runtime.CTX.keys() if k.startswith(f"{label}_")]
     counter = 0
     while True:
         suffix = gen_suffix(counter)

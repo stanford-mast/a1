@@ -208,11 +208,11 @@ class TestSQLRAGFunctionality:
         db = Database(duckdb_connection_string)
 
         # Insert some test data
-        insert_result = db.get_toolset().tools[1]  # insert tool
+        db.get_toolset().tools[1]  # insert tool
 
         # Actually, let's use the Database insert directly
         # Create table first via SQL
-        sql_tool_full = db.get_toolset().tools[0]  # sql tool (has INSERT access)
+        db.get_toolset().tools[0]  # sql tool (has INSERT access)
 
         # For RAG testing, we want readonly access
         rag = RAG(database=db)

@@ -14,7 +14,7 @@ from .llm import LLM, LLMInput, LLMOutput  # Import from llm.py
 from .models import Tool
 
 
-def Done(output_schema: type[BaseModel] | None = None) -> Tool:
+def Done(output_schema: type[BaseModel] | None = None) -> Tool:  # noqa: N802
     """
     Create a Done tool that marks agent execution as complete.
 
@@ -29,9 +29,9 @@ def Done(output_schema: type[BaseModel] | None = None) -> Tool:
     """
     # Use provided schema or create a generic one
     if output_schema is None:
-        OutputModel = create_model("DoneOutput", result=(Any, ...))
+        output_model = create_model("DoneOutput", result=(Any, ...))
     else:
-        OutputModel = output_schema
+        output_model = output_schema
 
     async def execute(**kwargs) -> dict[str, Any]:
         """Return input as output."""
@@ -41,7 +41,7 @@ def Done(output_schema: type[BaseModel] | None = None) -> Tool:
         name="done",
         description="Mark task as complete and return result",
         input_schema=output_schema or create_model("DoneInput", result=(Any, ...)),
-        output_schema=OutputModel,
+        output_schema=output_model,
         execute=execute,
         is_terminal=True,
     )

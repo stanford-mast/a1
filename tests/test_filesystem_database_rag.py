@@ -16,7 +16,8 @@ from a1 import RAG, Database, FileSystem
 
 # Check if duckdb-engine is available
 try:
-    import duckdb_engine
+    import duckdb_engine  # noqa: F401
+
     HAS_DUCKDB = True
 except ImportError:
     HAS_DUCKDB = False

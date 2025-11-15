@@ -154,13 +154,18 @@ class BaseGenerate(Generate):
 
     def __init__(
         self,
-        llm_tool: Any | None = None,  # Tool
+        llm_tool: Any | None = None,  # Tool or LLM instance
         timezone: str = "UTC",
     ):
         if llm_tool is None:
             from .llm import LLM
 
             llm_tool = LLM("gpt-4.1-mini")
+        # Normalize: if it's an LLM instance, extract the tool
+        from .llm import LLM
+
+        if isinstance(llm_tool, LLM):
+            llm_tool = llm_tool.tool
         self.llm_tool = llm_tool
         self.timezone = timezone
 

@@ -1,6 +1,7 @@
 """Test Strategy field configuration and usage."""
 
 import os
+
 import pytest
 from pydantic import BaseModel
 
