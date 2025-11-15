@@ -7,12 +7,16 @@ Provides:
 - RAG: Readonly wrapper that filters FileSystem/Database tools to readonly subsets
 """
 
+import re
 from pathlib import Path
 from typing import Any
 
+import fsspec
 from pydantic import BaseModel, Field
+from sqlalchemy import create_engine, text
 
-from .models import Tool, ToolSet
+from .models.tool import Tool
+from .models.toolset import ToolSet
 
 # ============================================================================
 # Input/Output Schemas - FileSystem
@@ -172,8 +176,6 @@ class FileSystem:
         Args:
             filepath: Base path or fsspec URL (e.g., "s3://bucket/prefix", "/local/path")
         """
-        import fsspec
-
         self.filepath = filepath
         self.fs, self.base_path = fsspec.core.url_to_fs(str(filepath))
 
@@ -219,8 +221,6 @@ class FileSystem:
         """Search for pattern in files."""
 
         async def execute(pattern: str, path: str, limit: int = 100) -> dict[str, Any]:
-            import re
-
             full_path = f"{self.base_path}/{path}".rstrip("/")
             matches = []
 
@@ -356,8 +356,6 @@ class Database:
             connection: SQLAlchemy connection string (e.g., "duckdb:///file.db", "sqlite:///db.db")
             schema: Optional default schema
         """
-        from sqlalchemy import create_engine
-
         self.connection_str = connection
         self.schema = schema
         self.engine = create_engine(connection)
@@ -379,8 +377,6 @@ class Database:
         """Execute SQL query."""
 
         async def execute(query: str, limit: int = 100) -> dict[str, Any]:
-            from sqlalchemy import text
-
             try:
                 query_upper = query.strip().upper()
                 is_select = query_upper.startswith("SELECT")
@@ -414,8 +410,6 @@ class Database:
         """Insert rows into table."""
 
         async def execute(table: str, data: list[dict[str, Any]]) -> dict[str, Any]:
-            from sqlalchemy import text
-
             try:
                 if not data:
                     return {"success": False, "rows_affected": 0, "error": "No data to insert"}
@@ -447,8 +441,6 @@ class Database:
         """Update rows in table."""
 
         async def execute(table: str, where: str, updates: dict[str, Any]) -> dict[str, Any]:
-            from sqlalchemy import text
-
             try:
                 if not updates:
                     return {"success": False, "rows_affected": 0, "error": "No updates provided"}
@@ -478,8 +470,6 @@ class Database:
         """Delete rows from table."""
 
         async def execute(table: str, where: str) -> dict[str, Any]:
-            from sqlalchemy import text
-
             try:
                 delete_sql = f"DELETE FROM {table} WHERE {where}"
 

@@ -6,9 +6,23 @@ Provides:
 - SimpleExecutor: Basic Python exec-based executor
 """
 
+import json
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any
+
+from pydantic import BaseModel
+
+from .code_utils import (
+    clean_execution_locals,
+    detect_user_async_function,
+    extract_execution_result,
+    extract_nested_models,
+    wrap_code_in_async_function,
+)
+from .context import Context
+from .context_utils import get_context as runtime_get_context
 
 logger = logging.getLogger(__name__)
 
@@ -91,10 +105,6 @@ class ToolWrapper:
         - dict: Convert to JSON string
         - Other types: Convert to str()
         """
-        import json
-
-        from pydantic import BaseModel
-
         if isinstance(content, BaseModel):
             return content.model_dump_json()
         elif isinstance(content, dict):
@@ -155,8 +165,6 @@ class ToolWrapper:
         #
         # If output is a Pydantic model with only a 'result' field AND it's not a terminal/structured tool,
         # return the value directly so generated code doesn't need hasattr checks.
-        from pydantic import BaseModel
-
         # Check if this is a special tool that shouldn't be auto-extracted
         is_llm_tool = "llm" in self.tool.name.lower()
         is_done_tool = self.tool.name.lower() == "done"
@@ -245,16 +253,10 @@ class BaseExecutor(Executor):
         exec_env["print"] = self._capture_print
 
         # Add standard library imports that generated code commonly needs
-        import json
-        import re
-
         exec_env["json"] = json
         exec_env["re"] = re
 
         # Add Context class and context management utilities
-        from .context import Context
-        from .runtime import get_context as runtime_get_context
-
         # Use the RUNTIME's get_context so contexts are shared
         # between test code and generated code execution
         exec_env["Context"] = Context
@@ -274,15 +276,11 @@ class BaseExecutor(Executor):
                     # Add the schema class itself so code can instantiate it if needed
                     exec_env[tool.input_schema.__name__] = tool.input_schema
                     # Also add all nested models from the input schema
-                    from .code_utils import extract_nested_models
-
                     nested = extract_nested_models(tool.input_schema)
                     exec_env.update(nested)
                 if hasattr(tool, "output_schema") and tool.output_schema:
                     exec_env[tool.output_schema.__name__] = tool.output_schema
                     # Also add all nested models from the output schema
-                    from .code_utils import extract_nested_models
-
                     nested = extract_nested_models(tool.output_schema)
                     exec_env.update(nested)
                 # Provide common short aliases for tools to match model expectations.
@@ -326,8 +324,6 @@ class BaseExecutor(Executor):
             logger.info(f"{'=' * 80}")
 
             # Use code_utils to handle __future__ imports and wrapping
-            from .code_utils import wrap_code_in_async_function
-
             wrapped_code = wrap_code_in_async_function(code)
             compiled = compile(wrapped_code, "<generated>", "exec")
         except SyntaxError as e:
@@ -344,8 +340,6 @@ class BaseExecutor(Executor):
 
             # Check if the generated code defined an async function that should be called
             # This handles the case where the LLM generates a function instead of just code
-            from .code_utils import clean_execution_locals, detect_user_async_function, extract_execution_result
-
             user_func_info = detect_user_async_function(result_locals)
 
             # If there's a user-defined async function AND no output was set, try to call it

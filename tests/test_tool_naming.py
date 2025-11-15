@@ -12,8 +12,8 @@ import pytest
 from pydantic import BaseModel, Field
 
 from a1 import Agent, Tool
-from a1.builtin_tools import LLM
 from a1.codegen import BaseGenerate, generate_tool_names
+from a1.llm import LLM
 
 
 class QueryInput(BaseModel):

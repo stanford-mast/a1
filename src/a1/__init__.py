@@ -35,8 +35,9 @@ Quick Start:
 
 import a1.code_utils as code_utils
 
-from .builtin_tools import LLM, Done
+from .builtin_tools import Done
 from .context import BaseCompact, Compact, Context, no_history
+from .context_utils import get_context, new_context
 from .em import EM
 from .executor import BaseExecutor, CodeOutput, Executor
 from .extra_codecheck import (
@@ -47,10 +48,10 @@ from .extra_strategies import (
     CheckOrdering,
     ReduceAndGenerate,
 )
-from .llm import LLMInput, LLMOutput, no_context
+from .llm import LLM, LLMInput, LLMOutput, no_context
 from .models import Agent, Message, RetryStrategy, Skill, SkillSet, Strategy, Tool, ToolSet, tool
 from .rag import RAG, Database, FileSystem
-from .runtime import Runtime, get_context, get_runtime, new_context, set_runtime, set_strategy
+from .runtime import Runtime, get_runtime, set_runtime, set_strategy
 from .serialization import (
     deserialize_agent,
     deserialize_skill,

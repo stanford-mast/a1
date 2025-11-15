@@ -10,13 +10,19 @@ Handles different function calling formats across providers:
 Provides unified interface via any-llm SDK.
 """
 
+import asyncio
 import json
 import logging
+import re
 from typing import Any
 
-from pydantic import BaseModel, Field, SkipValidation
+from pydantic import BaseModel, Field, SkipValidation, create_model
 
-from .models import Tool
+from .context import Context
+from .context_utils import new_context
+from .models.strategy import RetryStrategy
+from .models.tool import Tool
+from .runtime import get_runtime
 from .schema_utils import (
     clean_schema_for_openai,
     prepare_response_format,
@@ -35,8 +41,6 @@ except ImportError:
 
 def no_context():
     """Create a throwaway context list that won't be used."""
-    from .context import Context
-
     return Context()
 
 
@@ -107,8 +111,6 @@ def _clean_tool_name(name: str) -> str:
         cleaned = cleaned.replace(token, "")
 
     # Remove any remaining <|...> patterns
-    import re
-
     cleaned = re.sub(r"<\|[^|]+\|>", "", cleaned)
 
     return cleaned.strip()
@@ -166,9 +168,6 @@ class LLM:
         output_schema: type[BaseModel] | None = None,
         retry_strategy: Any | None = None,
     ):
-        # Import here to avoid circular dependency
-        from .models import RetryStrategy
-
         self.model = model
         self.input_schema = input_schema
         self.output_schema = output_schema
@@ -189,8 +188,6 @@ class LLM:
 
     def _create_tool(self) -> Tool:
         """Create the underlying Tool object."""
-        from .models import Tool
-
         retry_strategy = self.retry_strategy
         model = self.model
         input_schema = self.input_schema
@@ -249,8 +246,6 @@ class LLM:
             Returns typed output based on output_schema if provided, otherwise string.
             Supports JSON parsing from LLM responses to structured output types.
             """
-            import re
-
             # Determine the target output schema (passed to Done tool if needed)
             # Use the output_schema parameter if provided, otherwise fall back to the tool's declared output_schema
             target_output_schema = output_schema if output_schema is not None else tool_output_schema
@@ -262,8 +257,6 @@ class LLM:
 
             # Use provided context or create new tracked context
             if context is None:
-                from .runtime import new_context
-
                 context = new_context("intermediate")
 
             # Auto-add Done tool if tools provided but none are terminal
@@ -272,18 +265,14 @@ class LLM:
                 # - a1.models.Tool instances
                 # - executor.ToolWrapper instances (wrapping a Tool)
                 # - dicts produced by Pydantic model_dump (legacy/serialization)
-                from pydantic import create_model
-
-                from .models import Tool as ToolClass
-
                 normalized = []
                 for t in tools:
                     # Already a Tool
-                    if isinstance(t, ToolClass):
+                    if isinstance(t, Tool):
                         normalized.append(t)
                         continue
                     # ToolWrapper from executor - unwrap
-                    if hasattr(t, "tool") and isinstance(getattr(t, "tool"), ToolClass):
+                    if hasattr(t, "tool") and isinstance(getattr(t, "tool"), Tool):
                         normalized.append(getattr(t, "tool"))
                         continue
                     # Dict-like (from model_dump) - reconstruct minimal Tool
@@ -294,7 +283,7 @@ class LLM:
                         input_model = create_model(f"{name}_Input")
                         output_model = create_model(f"{name}_Output", result=(Any, ...))
                         try:
-                            reconstructed = ToolClass(
+                            reconstructed = Tool(
                                 name=name,
                                 description=desc,
                                 input_schema=input_model,
@@ -370,8 +359,6 @@ class LLM:
             if api_tools:
                 logger.info(f"Checking {len(api_tools)} tool schemas for large enums...")
                 try:
-                    from .runtime import get_runtime
-
                     runtime = get_runtime()
                     await reduce_large_enums_in_tool_schemas(
                         api_tools,
@@ -421,8 +408,6 @@ class LLM:
                         f"Preparing response_format for {target_output_schema.__name__ if hasattr(target_output_schema, '__name__') else 'unknown'}..."
                     )
                     try:
-                        from .runtime import get_runtime
-
                         runtime = get_runtime()
 
                         # Step 1: Convert Pydantic model to JSON schema
@@ -451,8 +436,6 @@ class LLM:
 
                 # Call LLM with retry logic using exponential backoff
                 # Use retry_strategy.max_iterations if available, default to 3
-                import asyncio
-
                 max_retries = retry_strategy.max_iterations if retry_strategy else 3
                 base_delay = 0.1  # 100ms initial delay
 
@@ -649,8 +632,6 @@ class LLM:
                 num_candidates = retry_strategy.num_candidates if retry_strategy else 3
 
                 # Try to parse response into output_schema with parallel candidates + retries
-                import asyncio
-
                 async def try_validate_response(
                     response_text: str, iteration: int, candidate_idx: int
                 ) -> BaseModel | None:

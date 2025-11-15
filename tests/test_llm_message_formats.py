@@ -16,8 +16,8 @@ import os
 import pytest
 from pydantic import BaseModel, Field
 
-from a1.builtin_tools import LLM
 from a1.context import Context
+from a1.llm import LLM
 from a1.models import Agent, Tool
 from a1.runtime import Runtime, get_context
 

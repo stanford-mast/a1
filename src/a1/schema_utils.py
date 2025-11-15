@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as np
 
-from .em import _pseudo_embed, _stringify_item
+from .embeddings_utils import _pseudo_embed, _stringify_item
 
 logger = logging.getLogger(__name__)
 

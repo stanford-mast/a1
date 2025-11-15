@@ -2,7 +2,6 @@
 Built-in tools for a1 agents.
 
 Provides:
-- LLM: Tool for calling language models with function calling (see llm.py)
 - Done: Terminal tool for returning agent output
 """
 
@@ -10,8 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel, create_model
 
-from .llm import LLM, LLMInput, LLMOutput  # Import from llm.py
-from .models import Tool
+from .models.tool import Tool
 
 
 def Done(output_schema: type[BaseModel] | None = None) -> Tool:  # noqa: N802
@@ -48,8 +46,5 @@ def Done(output_schema: type[BaseModel] | None = None) -> Tool:  # noqa: N802
 
 
 __all__ = [
-    "LLM",
     "Done",
-    "LLMInput",
-    "LLMOutput",
 ]

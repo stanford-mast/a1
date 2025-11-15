@@ -13,7 +13,8 @@ from typing import Any
 
 from .codecheck import Verify
 from .codegen import BaseGenerate
-from .models import Agent, Tool
+from .models.agent import Agent
+from .models.tool import Tool
 
 logger = logging.getLogger(__name__)
 

@@ -7,6 +7,8 @@ Provides:
 - Context manager support
 """
 
+import ast
+import asyncio
 import hashlib
 import json
 import logging
@@ -14,13 +16,30 @@ from contextvars import ContextVar
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Union
 
+from opentelemetry import trace
+
+from .code_utils import (
+    clean_schemas_from_executor_state,
+    extract_non_stub_async_functions,
+    fix_generated_code,
+    has_code_structure,
+    inject_schemas_to_executor_state,
+    populate_definitions_to_executor_state,
+    validate_code_output,
+    wrap_code_body_as_function,
+)
+from .codegen import generate_tool_names
 from .context import BaseCompact, Context
+from .context_utils import get_context, new_context
 from .executor import BaseExecutor
-from .models import Agent, Message, Strategy, Tool
-from .strategies import BaseCost, BaseGenerate, BaseVerify
+from .models.message import Message
+from .models.strategy import Strategy
+from .models.tool import Tool
+from .strategies import BaseCost, BaseGenerate, BaseVerify, IsFunction, IsLoop
 
 if TYPE_CHECKING:
     from .executor import Executor
+    from .models.agent import Agent
     from .strategies import Compact, Cost, Generate, Verify
 
 logger = logging.getLogger(__name__)
@@ -68,7 +87,7 @@ class Runtime:
         from pydantic import BaseModel, Field
 
         from .llm import no_context
-        from .models import Strategy
+        from .models.strategy import Strategy
 
         # Persistence settings
         self.file_path = Path(file_path) if file_path else None
@@ -190,8 +209,6 @@ class Runtime:
         """
         import json
 
-        from .models import Message
-
         file_path = Path(path)
 
         if file_path.exists():
@@ -228,7 +245,7 @@ class Runtime:
         """Exit context manager - restore previous runtime."""
         _runtime_var.reset(self._token)
 
-    async def aot(self, agent: Agent, cache: bool = True, strategy: Optional["Strategy"] = None) -> Tool:
+    async def aot(self, agent: "Agent", cache: bool = True, strategy: Optional["Strategy"] = None) -> Tool:
         """
         Ahead-of-time compile an agent to a tool.
 
@@ -245,12 +262,6 @@ class Runtime:
         Returns:
             Tool that executes the compiled agent
         """
-        import asyncio
-
-        from opentelemetry import trace
-
-        from .models import Strategy
-        from .strategies import IsFunction, IsLoop
 
         # Merge strategies: call strategy > runtime strategy > defaults
         if strategy is None:
@@ -331,8 +342,6 @@ class Runtime:
                 async def generate_with_retries():
                     # Create a codegen context for this candidate
                     # This enables conversation continuity across retries
-                    from .context import Context
-
                     codegen_context = Context()
 
                     past_attempts = []
@@ -352,8 +361,6 @@ class Runtime:
                         definition_code, generated_code = result
 
                         # Fix the generated code (wrap if needed for AOT)
-                        from .code_utils import fix_generated_code
-
                         fixed_code = fix_generated_code(
                             generated_code, is_aot=True, function_name=agent.name, agent=agent
                         )
@@ -421,7 +428,7 @@ class Runtime:
 
             return self._code_to_tool(agent, generated_code)
 
-    async def jit(self, agent: Agent, strategy: Strategy | None = None, **kwargs) -> Any:
+    async def jit(self, agent: "Agent", strategy: Strategy | None = None, **kwargs) -> Any:
         """
         Just-in-time execute an agent.
 
@@ -436,11 +443,6 @@ class Runtime:
         Returns:
             Output from the agent
         """
-        import asyncio
-
-        from opentelemetry import trace
-
-        from .strategies import IsLoop
 
         # Handle auto-conversion of string input
         # If kwargs contains a single value and the agent's input schema
@@ -473,8 +475,6 @@ class Runtime:
         input_dict = validated_input.model_dump()
 
         # Merge strategies: call strategy > runtime strategy > defaults
-        from .models import Strategy
-
         if strategy is None:
             strategy = self.strategy
         else:
@@ -538,8 +538,6 @@ class Runtime:
                     # Create a FRESH codegen context for this candidate
                     # Do NOT branch from attempt_context - that only has user task JSON
                     # Code generation needs its own clean context
-                    from .context import Context
-
                     codegen_context = Context()
 
                     past_attempts = []
@@ -559,8 +557,6 @@ class Runtime:
                         definition_code, generated_code = result
 
                         # Fix the generated code (just fix asyncio.run for JIT)
-                        from .code_utils import fix_generated_code
-
                         fixed_code = fix_generated_code(generated_code, is_aot=False)
 
                         # For JIT, concatenate definitions with fixed code for validation
@@ -616,14 +612,6 @@ class Runtime:
                     )
 
                     try:
-                        # Use code_utils for schema injection
-                        from .code_utils import (
-                            clean_schemas_from_executor_state,
-                            inject_schemas_to_executor_state,
-                            populate_definitions_to_executor_state,
-                            validate_code_output,
-                        )
-
                         # Add agent's input/output schemas to executor state
                         inject_schemas_to_executor_state(self.executor, agent)
 
@@ -711,8 +699,6 @@ class Runtime:
         if isinstance(tool, LLM):
             tool = tool.tool
 
-        from opentelemetry import trace
-
         tracer = trace.get_tracer(__name__)
 
         # Temporarily set this runtime as the current one so tools can access it via get_runtime()
@@ -781,7 +767,7 @@ class Runtime:
             # Restore the previous runtime
             _runtime_var.set(old_runtime)
 
-    def _get_cache_key(self, agent: Agent) -> str:
+    def _get_cache_key(self, agent: "Agent") -> str:
         """Generate cache key for agent."""
         # Hash agent definition
         agent_dict = {
@@ -792,7 +778,7 @@ class Runtime:
         agent_json = json.dumps(agent_dict, sort_keys=True)
         return hashlib.sha256(agent_json.encode()).hexdigest()[:16]
 
-    def _code_to_tool(self, agent: Agent, generated_code: str) -> Tool:
+    def _code_to_tool(self, agent: "Agent", generated_code: str) -> Tool:
         """
         Convert compiled code to a Tool.
 
@@ -817,16 +803,8 @@ class Runtime:
                 self.executor.state[agent.input_schema.__name__] = agent.input_schema
 
             # Check if code has a function definition or is just executable code
-            import ast
-
             exec_code = generated_code
             try:
-                from .code_utils import (
-                    extract_non_stub_async_functions,
-                    has_code_structure,
-                    wrap_code_body_as_function,
-                )
-
                 ast.parse(generated_code)  # Validate syntax
                 func_defs = extract_non_stub_async_functions(generated_code)
 
@@ -883,7 +861,7 @@ class Runtime:
             is_terminal=False,
         )
 
-    def _generate_loop_template(self, agent: Agent) -> str:
+    def _generate_loop_template(self, agent: "Agent") -> str:
         """
         Generate templated agentic loop code.
 
@@ -908,8 +886,6 @@ class Runtime:
             raise RuntimeError("No LLM tool found for loop template")
 
         # Generate short name for LLM tool using the same mapping as codegen
-        from .codegen import generate_tool_names
-
         tool_name_map = generate_tool_names(llm_tools)
         llm_short_name = tool_name_map.get(llm_tool.name, llm_tool.name)
 
@@ -927,6 +903,8 @@ try:
     context = _context_param
 except NameError:
     try:
+        from a1.context_utils import get_context
+
         context = get_context("main")
     except Exception:
         context = no_context()
@@ -1047,103 +1025,9 @@ def set_strategy(strategy: "Strategy"):
         runtime.compact = strategy.compact
 
 
-def get_context(key: str = "main"):
-    """
-    Get or create a context by key.
-
-    Args:
-        key: Context key (default: "main")
-
-    Returns:
-        Context object
-    """
-    from .context import Context
-
-    runtime = get_runtime()
-    if key not in runtime.CTX:
-        # Create new context, linking to runtime for auto-save
-        ctx = Context()
-        # Link context to runtime for persistence
-        if runtime.keep_updated and runtime.file_path:
-            ctx._runtime_save = runtime._save
-            ctx.keep_updated = True  # Enable auto-save for this context
-        runtime.CTX[key] = ctx
-        # Trigger initial save if runtime is persistent
-        if runtime.keep_updated and runtime.file_path:
-            runtime._save()
-    return runtime.CTX[key]
-
-
-def new_context(label: str = "intermediate", branch_from: Optional["Context"] = None):
-    """
-    Create a new context with auto-generated unique name and register it in Runtime.
-
-    Context names follow pattern: {label}_{suffix} where suffix is a, b, c, ..., z, aa, ab, etc.
-
-    Args:
-        label: Label prefix for the context (e.g., "attempt", "intermediate", "main")
-        branch_from: Optional source context to copy messages from
-
-    Returns:
-        Newly created Context object registered in Runtime.CTX
-
-    Examples:
-        >>> ctx1 = new_context("attempt")  # Creates "attempt_a"
-        >>> ctx2 = new_context("attempt")  # Creates "attempt_b"
-        >>> ctx3 = new_context("intermediate")  # Creates "intermediate_a"
-    """
-    from .context import Context
-
-    runtime = get_runtime()
-
-    # Generate unique suffix (a, b, c, ..., z, aa, ab, ...)
-    def gen_suffix(n):
-        """Generate suffix: 0->a, 1->b, ..., 25->z, 26->aa, 27->ab, etc."""
-        result = ""
-        while True:
-            result = chr(ord("a") + (n % 26)) + result
-            n //= 26
-            if n == 0:
-                break
-            n -= 1  # Adjust for aa coming after z
-        return result
-
-    # Find next available suffix for this label
-    # existing_keys = [k for k in runtime.CTX.keys() if k.startswith(f"{label}_")]
-    counter = 0
-    while True:
-        suffix = gen_suffix(counter)
-        key = f"{label}_{suffix}"
-        if key not in runtime.CTX:
-            break
-        counter += 1
-
-    # Create new context
-    ctx = Context()
-
-    # Copy messages from source if provided
-    if branch_from is not None:
-        ctx.messages = branch_from.messages.copy()
-
-    # Link context to runtime for persistence
-    if runtime.keep_updated and runtime.file_path:
-        ctx._runtime_save = runtime._save
-        ctx.keep_updated = True
-
-    runtime.CTX[key] = ctx
-
-    # Trigger initial save if runtime is persistent
-    if runtime.keep_updated and runtime.file_path:
-        runtime._save()
-
-    return ctx
-
-
 __all__ = [
     "Runtime",
     "get_runtime",
     "set_runtime",
     "set_strategy",
-    "get_context",
-    "new_context",
 ]

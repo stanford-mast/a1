@@ -10,7 +10,7 @@ Provides:
 import json
 from pathlib import Path
 
-from .models import Message
+from .models.message import Message
 
 
 class Context:

@@ -8,55 +8,20 @@ Provides:
 - Helper functions for text stringification and cosine similarity
 """
 
-import hashlib
-import json
+import asyncio
 import logging
 from typing import Any
 
 import numpy as np
+from openai import AsyncOpenAI
 from pydantic import Field, create_model
 
-from .models import Tool
+from .embeddings_utils import _pseudo_embed, _stringify_item
+from .models.strategy import ParallelStrategy
+from .models.tool import Tool
 from .runtime import get_runtime
 
 logger = logging.getLogger(__name__)
-
-
-def _stringify_item(x: Any) -> str:
-    """Convert any item to a JSON string for embedding."""
-    try:
-        return json.dumps(x, default=lambda o: getattr(o, "__dict__", str(o)), sort_keys=True)
-    except Exception:
-        return str(x)
-
-
-def _pseudo_embed(text: str, dim: int = 512) -> np.ndarray:
-    """
-    Deterministic pseudo-embedding based on SHA256 digest.
-
-    Returns normalized vector in R^dim. Not a real semantic embedding,
-    but deterministic and fast for testing/fallback when no API key.
-
-    Args:
-        text: Text to embed
-        dim: Embedding dimension (default: 512)
-
-    Returns:
-        Normalized numpy array of shape (dim,)
-    """
-    # Use multiple hashes with different salts to get enough entropy
-    vals = []
-    for offset in range((dim + 31) // 32):  # 32 floats per hash
-        salt = f"{offset}:{text}"
-        h = hashlib.sha256(salt.encode("utf-8")).digest()
-        for i in range(min(32, dim - len(vals))):
-            byte = h[i % len(h)]
-            vals.append((byte / 255.0) * 2.0 - 1.0)  # Map to [-1, 1]
-
-    # Convert to numpy and normalize
-    vec = np.array(vals[:dim], dtype=np.float32)
-    vec = vec / np.linalg.norm(vec)
-    return vec
 
 
 def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
@@ -187,13 +152,6 @@ async def _get_embeddings_batch(
     Returns:
         List of embedding vectors (numpy arrays)
     """
-    import asyncio
-
-    import numpy as np
-    from openai import AsyncOpenAI
-
-    from .models import ParallelStrategy
-
     # Use provided strategy or create default
     if parallel_strategy is None:
         parallel_strategy = ParallelStrategy(chunk_size=2048, max_parallel_chunks=16, max_iterations=3)

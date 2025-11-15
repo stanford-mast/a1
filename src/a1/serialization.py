@@ -21,7 +21,11 @@ from typing import Any
 
 from pydantic import BaseModel, create_model
 
-from .models import Agent, Skill, SkillSet, Strategy, Tool, ToolSet
+from .models.agent import Agent
+from .models.skill import Skill, SkillSet
+from .models.strategy import Strategy
+from .models.tool import Tool
+from .models.toolset import ToolSet
 
 
 def serialize_callable(func: Any) -> dict[str, Any]:

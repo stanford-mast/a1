@@ -5,15 +5,23 @@ Provides Generate strategies that produce single code candidates.
 Runtime orchestrates parallel generation, validation, and ranking.
 """
 
+import copy
 import json
 import logging
 import re
 import types
-from typing import Any, Union, get_args, get_origin
+import zoneinfo
+from datetime import datetime
+from typing import TYPE_CHECKING, Any, Union, get_args, get_origin
 
 from pydantic import BaseModel
 
 from .code_utils import generate_nested_pydantic_classes, normalize_generated_code
+from .models.tool import Tool
+from .schema_utils import de_enum_large_enums
+
+if TYPE_CHECKING:
+    from .llm import LLM
 
 logger = logging.getLogger(__name__)
 
@@ -154,16 +162,13 @@ class BaseGenerate(Generate):
 
     def __init__(
         self,
-        llm_tool: Any | None = None,  # Tool or LLM instance
+        llm_tool: Union[Tool, "LLM", None] = None,  # Tool or LLM instance
         timezone: str = "UTC",
     ):
-        if llm_tool is None:
-            from .llm import LLM
-
-            llm_tool = LLM("gpt-4.1-mini")
-        # Normalize: if it's an LLM instance, extract the tool
         from .llm import LLM
 
+        if llm_tool is None:
+            llm_tool = LLM("gpt-4.1-mini")
         if isinstance(llm_tool, LLM):
             llm_tool = llm_tool.tool
         self.llm_tool = llm_tool
@@ -311,8 +316,6 @@ If an error is reported, fix the previously generated code accordingly.
 
     def _build_definition_code(self, agent: Any, return_function: bool = False, task: str = "") -> str:
         """Build definition code showing tool signatures and agent schemas."""
-        import copy
-
         lines = []
 
         # IMPORTANT: Keep imports in definition_code so LLM can reference them.
@@ -382,8 +385,6 @@ If an error is reported, fix the previously generated code accordingly.
 
                 # If we have a JSON schema, de-enum any property with >100 options
                 if def_schema:
-                    from .schema_utils import de_enum_large_enums
-
                     def_schema = copy.deepcopy(def_schema)
                     de_enum_large_enums(def_schema, threshold=100)
 
@@ -563,10 +564,6 @@ If an error is reported, fix the previously generated code accordingly.
                 out_schema = None
 
             if out_schema:
-                import copy
-
-                from .schema_utils import de_enum_large_enums
-
                 out_schema = copy.deepcopy(out_schema)
                 de_enum_large_enums(out_schema, threshold=100)
 
@@ -722,11 +719,7 @@ If an error is reported, fix the previously generated code accordingly.
 
     def _build_timestamp(self) -> list[str]:
         """Build timestamp string for context."""
-        from datetime import datetime
-
         try:
-            import zoneinfo
-
             tz = zoneinfo.ZoneInfo(self.timezone)
             now = datetime.now(tz)
             day_of_week = now.strftime("%A")
