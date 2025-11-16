@@ -1,8 +1,12 @@
 """Skill and SkillSet models for reusable knowledge units."""
 
-from typing import Any
+import hashlib
+import json
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from ..llm import LLM
+from ..runtime import get_runtime
 
 
 class Skill(BaseModel):
@@ -28,15 +32,38 @@ class Skill(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @classmethod
+    def _get_cache_key(
+        cls,
+        urls: list[str],
+        name: str,
+        description: str,
+        chunk_size: int,
+        instructions: str | None,
+        modules: list[str] | None,
+    ) -> str:
+        """Generate cache key for skill from URL parameters."""
+        cache_key_data = {
+            "urls": sorted(urls),  # Sort for consistent hashing
+            "name": name,
+            "description": description,
+            "chunk_size": chunk_size,
+            "instructions": instructions,
+            "modules": sorted(modules) if modules else None,
+        }
+        cache_key_json = json.dumps(cache_key_data, sort_keys=True)
+        return f"skill_{hashlib.sha256(cache_key_json.encode()).hexdigest()[:16]}"
+
+    @classmethod
     async def from_url(
         cls,
         urls: str | list[str],
         name: str,
         description: str,
         chunk_size: int = 2000,
-        llm: Any | None = None,
+        llm: LLM | None = None,
         instructions: str | None = None,
         modules: list[str] | None = None,
+        cache: bool = True,
     ) -> "Skill":
         """
         Load skill content from one or more URLs using crawl4ai and LLM summarization.
@@ -54,6 +81,7 @@ class Skill(BaseModel):
             llm: Optional LLM tool to use for summarization (uses default if not provided)
             instructions: Optional specific instructions for skill generation
             modules: Optional list of Python modules (auto-detected if not provided)
+            cache: Whether to use cached skill if available (default: True)
 
         Returns:
             Skill with content from the URLs
@@ -65,6 +93,7 @@ class Skill(BaseModel):
         Note:
             Requires: pip install crawl4ai
             The LLM used for summarization should be fast/cheap (e.g., gpt-3.5-turbo)
+            Skills are cached based on URLs and parameters to avoid redundant crawling/LLM calls
         """
         try:
             from crawl4ai import AsyncWebCrawler
@@ -75,10 +104,19 @@ class Skill(BaseModel):
         if isinstance(urls, str):
             urls = [urls]
 
+        cache_key = cls._get_cache_key(urls, name, description, chunk_size, instructions, modules)
+
+        # Check cache if enabled
+        if cache:
+            runtime = get_runtime()
+            cache_path = runtime.cache_dir / f"{cache_key}.json"
+            if cache_path.exists():
+                # Load from cache
+                cached_data = json.loads(cache_path.read_text())
+                return cls(**cached_data)
+
         # Use default LLM if not provided
         if llm is None:
-            from ..llm import LLM
-
             llm = LLM("gpt-4.1-mini")
 
         # Fetch content from URLs using crawl4ai
@@ -116,8 +154,8 @@ Content to summarize:
 Format the response as a markdown skill guide.
 """
 
-        # Get LLM response (assuming llm is a Tool)
-        summary_response = await llm(content=summarization_prompt)
+        # Get LLM response via the tool property
+        summary_response = await llm.tool(content=summarization_prompt)
 
         # Extract content from response
         if hasattr(summary_response, "content"):
@@ -150,7 +188,15 @@ Format the response as a markdown skill guide.
                 if module.lower() in full_content.lower():
                     detected_modules.append(module)
 
-        return cls(name=name, description=description, content=skill_content, modules=detected_modules)
+        skill = cls(name=name, description=description, content=skill_content, modules=detected_modules)
+
+        # Save to cache if enabled
+        if cache:
+            runtime = get_runtime()
+            cache_path = runtime.cache_dir / f"{cache_key}.json"
+            cache_path.write_text(json.dumps(skill.model_dump(), indent=2))
+
+        return skill
 
 
 class SkillSet(BaseModel):
