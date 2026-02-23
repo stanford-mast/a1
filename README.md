@@ -95,10 +95,10 @@ See the `tests/` directory for extensive examples of everything A1 can do. Docs 
 Prefer A1 if your task is latency-critical, works with untrusted data, or may need to run code.
 
 #### Is A1 production-ready?
-Yes in terms of API stability. The caveat is that A1 is new.
+API is stable.
 
 #### Can we get enterprise support?
-Please don't hesitate to reach out (calebwin@stanford.edu)
+Happy to help (calebwin@stanford.edu)
 
 ## 🤝 Contributing
 
